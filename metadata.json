@@ -1,0 +1,6 @@
+{
+  "name": "TradeNexa.com",
+  "description": "AI Crypto Trading Intelligence SaaS Platform with advanced technical indicator charting, real-time signal gateways, and core wallet ledgers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
