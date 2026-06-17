@@ -11,15 +11,15 @@ $is_admin = auth_is_admin();
 // Helper to render high-contrast active state
 function get_active_class($page_matches, $current_loaded) {
     if (in_array($current_loaded, $page_matches)) {
-        return 'text-emerald-400 font-bold translate-y-[-2px] scale-102';
+        return 'text-[#F0B90B] font-bold translate-y-[-2px] scale-102';
     }
-    return 'text-slate-500 hover:text-slate-300';
+    return 'text-gray-500 hover:text-gray-300';
 }
 ?>
         </main> <!-- End of view output container container -->
 
         <!-- Bottom Tabbed Bar Navigation Menu (Mobile-First touch target optimized) -->
-        <nav class="w-full max-w-md bg-slate-950/90 backdrop-blur-md border-t border-slate-900 fixed bottom-0 z-40 px-2 py-2 flex items-center justify-around shadow-2xl">
+        <nav class="w-full max-w-md bg-[#0B0E11]/95 backdrop-blur-md border-t border-[#20262D] fixed bottom-0 z-40 px-2 py-2 flex items-center justify-around shadow-2xl">
             
             <!-- Tab: Markets -->
             <a href="index.php?page=user/market" class="flex flex-col items-center justify-center py-1 px-2.5 transition text-center cursor-pointer select-none <?= get_active_class(['user/market', ''], $active_page) ?>">
@@ -58,10 +58,10 @@ function get_active_class($page_matches, $current_loaded) {
             <!-- Tab: Profile Settings / Admin Core Portal -->
             <?php if ($is_admin): ?>
                 <a href="index.php?page=admin/dashboard" class="flex flex-col items-center justify-center py-1 px-2.5 transition text-center cursor-pointer select-none <?= get_active_class(['admin/dashboard', 'admin/users', 'admin/signals', 'admin/ads', 'admin/messages', 'admin/settings'], $active_page) ?>">
-                    <svg class="w-5 h-5 mb-0.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-5 h-5 mb-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
                     </svg>
-                    <span class="text-[9px] tracking-wide font-bold text-indigo-300">Admin</span>
+                    <span class="text-[9px] tracking-wide font-bold text-amber-400">Admin</span>
                 </a>
             <?php else: ?>
                 <a href="index.php?page=user/profile" class="flex flex-col items-center justify-center py-1 px-2.5 transition text-center cursor-pointer select-none <?= get_active_class(['user/profile', 'user/settings', 'billing/plans'], $active_page) ?>">

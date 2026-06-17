@@ -1,6 +1,9 @@
 # TradeNexa.com — AI Crypto Trading Intelligence SaaS Platform
 
-Welcome to the production repository of **TradeNexa.com**, a modern, mobile-first cryptocurrency market intelligence SaaS platform built natively for shared hosting environments. Traditional frameworks consume significant memory resources; TradeNexa is architected using **pure PHP 7.4+ and MySQLi (with absolutely zero dependencies or bloated Node packages required for production)**.
+---
+
+### 🚨 MASTER CONSTRAINT: ONLY PHP & MYSQLI
+**TradeNexa.com is strictly engineered to rely ONLY on native PHP 7.4+ and the native `mysqli` driver class. To preserve maximum performance on standard cPanel/Shared Hosting environments, any use of PDO (`PDO`), heavyweight object-relational mappers (ORMs), or external server-side node dependencies in production is strictly forbidden.** 
 
 ---
 
@@ -9,8 +12,31 @@ Welcome to the production repository of **TradeNexa.com**, a modern, mobile-firs
 *   **Runtime Engine**: PHP 7.4 to PHP 8.2+ Compatibility
 *   **Database Interface**: Native `mysqli` API (Strictly No PDO)
 *   **UI Philosophy**: Strict Mobile-First User-Agent blocker (Adaptive full-screen dark cockpit)
-*   **Monetization Structures**: Pricing tier levels gating (Free, Pro, VIP) + Dynamic Google Ad banner positions
+*   **Monetization Structures**: Dynamic subscription tiers gating (Free, Pro, VIP) with globally tunable pricing
 *   **Ledger Security**: Double-Entry ledger system enforcing audited balances (no atomic increments)
+*   **Admin Settings Engine**: Dynamic SaaS parameter seeder and global configuration state repository
+
+---
+
+## ⚙️ Admin Settings Module Architecture
+
+The SaaS platform features a fully-integrated administration module that controls global variable overrides without requiring code redeployments. These options are persisted inside the database's `settings` table and are accessed via the `settings_get()` function:
+
+### 1. Global Parameters Schema
+Inside the `settings` database table, the following keys are registered and live-evaluated:
+*   `signal_sensitivity`: Regulates the AI core mathematical filter limits (`low` suppresses volatile false breakouts, `medium` is the baseline, and `high` scales up trend continuity tolerances).
+*   `bybit_api_url` / `bybit_api_key` / `bybit_api_secret`: Persists REST gateway coordinates, signatures, parameters, and credentials securely for signature-verified API calls.
+*   `pricing_pro` / `pricing_vip`: Dynamically dictates strategy subscription purchase package debits against ledger balances.
+*   `maintenance_alert_active` / `maintenance_alert_msg`: Controls and stores prominent system bulletin warn notifications regarding hardware backup operations.
+
+### 2. Live Synchronization Workflow
+1. **Interactive Frontend Cockpit**: The administrators' control view provides dedicated toggle selectors, credential inputs, rate adjustments, and alerts editors.
+2. **Server-Side Settings Controller**: API connections dispatch the updated settings to `app/core/settings.php` where keys are sanitised and written to the database.
+3. **Execution Cascading**:
+    *   **Bybit REST Fetching**: `app/services/bybit_service.php` extracts the verified endpoints, timestamps HMAC SHA256 signatures, and routes queries directly.
+    *   **AI Indicators Engine**: `app/services/ai_signal_engine.php` evaluates `signal_sensitivity` to scale the ultimate confidence outputs (e.g. BTCUSDT confidence climbs to 98% in high-sensitivity mode).
+    *   **Billing Engine**: Subscription upgrades query `pricing_pro` and `pricing_vip` fields to debit wallets with precise accuracy.
+    *   **Broadcast Banner**: Core layouts query the active bulletin configurations to display warning banners dynamically.
 
 ---
 

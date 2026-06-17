@@ -25,7 +25,7 @@ $json_data = json_encode($candles);
 ?>
 
 <!-- Asset & Timeframe Header -->
-<div class="mb-4 bg-slate-900 border border-slate-800 rounded-3xl p-4">
+<div class="mb-4 bg-[#161A1E] border border-[#20262D] rounded-3xl p-4">
     <div class="flex items-center justify-between mb-3.5">
         
         <!-- Asset Selector -->
@@ -34,11 +34,11 @@ $json_data = json_encode($candles);
                 <input type="hidden" name="page" value="market/charts">
                 <input type="hidden" name="timeframe" value="<?= $timeframe ?>">
                 
-                <select name="symbol" onchange="document.getElementById('symbolForm').submit()" class="bg-slate-950 border border-slate-800 text-slate-100 rounded-xl px-3 py-1.5 text-sm font-bold font-mono focus:outline-none focus:border-indigo-500 cursor-pointer">
-                    <option value="BTCUSDT" <?= ($symbol === 'BTCUSDT' ? 'selected' : '') ?>>BTC/USDT (Bitcoin)</option>
-                    <option value="ETHUSDT" <?= ($symbol === 'ETHUSDT' ? 'selected' : '') ?>>ETH/USDT (Ethereum)</option>
-                    <option value="SOLUSDT" <?= ($symbol === 'SOLUSDT' ? 'selected' : '') ?>>SOL/USDT (Solana)</option>
-                    <option value="ADAUSDT" <?= ($symbol === 'ADAUSDT' ? 'selected' : '') ?>>ADA/USDT (Cardano)</option>
+                <select name="symbol" onchange="document.getElementById('symbolForm').submit()" class="bg-[#0B0E11] border border-[#20262D] text-[#EAECEF] rounded-xl px-3 py-1.5 text-sm font-bold font-mono focus:outline-none focus:border-[#F0B90B] cursor-pointer">
+                    <option value="BTCUSDT" <?= ($symbol === 'BTCUSDT' ? 'selected' : '') ?>>BTC/USDT Persistent</option>
+                    <option value="ETHUSDT" <?= ($symbol === 'ETHUSDT' ? 'selected' : '') ?>>ETH/USDT Persistent</option>
+                    <option value="SOLUSDT" <?= ($symbol === 'SOLUSDT' ? 'selected' : '') ?>>SOL/USDT Persistent</option>
+                    <option value="ADAUSDT" <?= ($symbol === 'ADAUSDT' ? 'selected' : '') ?>>ADA/USDT Persistent</option>
                 </select>
             </form>
         </div>
@@ -46,18 +46,18 @@ $json_data = json_encode($candles);
         <!-- Premium Status Pill -->
         <div>
             <?php if (!$has_indicators): ?>
-                <span class="text-[8px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-lg animate-pulse">Basic Mode</span>
+                <span class="text-[8px] font-bold text-[#F0B90B] bg-[#F0B90B]/15 border border-[#F0B90B]/20 px-2 py-1 rounded-lg animate-pulse font-mono tracking-wider">LITE FEED</span>
             <?php else: ?>
-                <span class="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">Pro Unlocked</span>
+                <span class="text-[8px] font-black text-black bg-[#F0B90B] px-2 py-1 rounded-lg font-mono tracking-wider">BYBIT WEBSOCKET PRO</span>
             <?php endif; ?>
         </div>
     </div>
 
     <!-- Timeframe picker line -->
-    <div class="flex gap-1 overflow-x-auto no-scrollbar pb-1 border-t border-slate-800/60 pt-3">
+    <div class="flex gap-1 overflow-x-auto no-scrollbar pb-1 border-t border-[#20262D]/60 pt-3">
         <?php foreach ($valid_tfs as $tf): ?>
             <a href="index.php?page=market/charts&symbol=<?= $symbol ?>&timeframe=<?= $tf ?>" class="px-3 py-1.5 text-xs font-mono font-bold rounded-lg transition text-center select-none cursor-pointer
-                <?= ($timeframe === $tf ? 'bg-indigo-600 text-white' : 'bg-slate-950 border border-slate-850 text-slate-400 hover:text-slate-200') ?>">
+                <?= ($timeframe === $tf ? 'bg-[#F0B90B] text-black font-black' : 'bg-[#0B0E11] border border-[#20262D] text-gray-400 hover:text-gray-200') ?>">
                 <?= $tf ?>
             </a>
         <?php endforeach; ?>
@@ -65,43 +65,43 @@ $json_data = json_encode($candles);
 </div>
 
 <!-- Interactive Chart Drawing Stage container -->
-<div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4 select-none relative overflow-hidden">
+<div class="bg-[#161A1E] border border-[#20262D] rounded-3xl p-4 mb-4 select-none relative overflow-hidden">
     
     <!-- Legend Info overlay -->
     <div class="absolute top-4 left-4 z-10 space-y-1">
-        <span class="text-[9px] font-mono font-black text-slate-300"><?= $symbol ?> (<?= strtoupper($timeframe) ?>)</span>
+        <span class="text-[9px] font-mono font-black text-slate-350"><?= $symbol ?> (<?= strtoupper($timeframe) ?>)</span>
         <div class="flex gap-2.5">
             <?php if ($has_indicators): ?>
-                <span class="text-[8px] font-mono text-amber-400">EMA(9): <span id="ema9Legend">...</span></span>
+                <span class="text-[8px] font-mono text-[#F0B90B]">EMA(9): <span id="ema9Legend">...</span></span>
                 <span class="text-[8px] font-mono text-purple-400">EMA(21): <span id="ema21Legend">...</span></span>
-                <span class="text-[8px] font-mono text-indigo-400">RSI(14): <span id="rsiLegend">...</span></span>
+                <span class="text-[8px] font-mono text-cyan-400">RSI(14): <span id="rsiLegend">...</span></span>
             <?php else: ?>
-                <span class="text-[8px] font-mono text-slate-500">indicators disabled — <a href="index.php?page=billing/plans" class="text-indigo-400 font-bold hover:underline">Upgrade</a></span>
+                <span class="text-[8px] font-mono text-gray-500">indicators disabled — <a href="index.php?page=billing/plans" class="text-[#F0B90B] font-bold hover:underline">Upgrade</a></span>
             <?php endif; ?>
         </div>
     </div>
 
     <!-- MAIN CANDLESTICK CANVAS -->
-    <div class="w-full h-52 bg-slate-950 rounded-2xl relative border border-slate-850 mt-5">
+    <div class="w-full h-52 bg-[#0B0E11] rounded-2xl relative border border-[#20262D] mt-5">
         <svg id="candleSvg" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <!-- Drawn Dynamically -->
         </svg>
     </div>
 
     <!-- VOLUME BARS CANVAS -->
-    <div class="w-full h-12 bg-slate-950 rounded-xl relative border border-slate-850 mt-2 flex items-end">
+    <div class="w-full h-12 bg-[#0B0E11] rounded-xl relative border border-[#20262D] mt-2 flex items-end">
         <svg id="volumeSvg" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <!-- Drawn Dynamically -->
         </svg>
     </div>
 
     <!-- RSI SUB-CHART (Gated for Pro/VIP) -->
-    <div class="w-full h-14 bg-slate-950 rounded-xl relative border border-slate-850 mt-2 flex items-center relative overflow-hidden">
+    <div class="w-full h-14 bg-[#0B0E11] rounded-xl relative border border-[#20262D] mt-2 flex items-center relative overflow-hidden">
         <?php if (!$has_indicators): ?>
             <!-- Lock Screen covering secondary chart -->
-            <div class="absolute inset-0 bg-slate-950/85 backdrop-blur-[1px] flex flex-col justify-center items-center text-center p-3 z-10 select-none">
+            <div class="absolute inset-0 bg-[#0B0E11]/85 backdrop-blur-[1px] flex flex-col justify-center items-center text-center p-3 z-10 select-none">
                 <span class="text-xs">🔒</span>
-                <h4 class="text-[9px] font-bold text-slate-300 mt-1">Upgrade to Premium for RSI oscillation waves</h4>
+                <h4 class="text-[9px] font-bold text-gray-400 mt-1">Upgrade to Premium for RSI oscillation waves</h4>
             </div>
         <?php endif; ?>
         <svg id="rsiSvg" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
@@ -112,23 +112,23 @@ $json_data = json_encode($candles);
 </div>
 
 <!-- Market indicators list view card -->
-<div class="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+<div class="bg-[#161A1E] border border-[#20262D] rounded-3xl p-4">
     <div class="flex items-center justify-between mb-3">
-        <h4 class="text-xs font-bold uppercase text-slate-400 tracking-wider">Dynamic Oscillator Status</h4>
-        <span class="text-[8px] uppercase tracking-wider font-bold bg-slate-950 border border-slate-800 px-1.5 py-0.5 rounded text-amber-400 font-mono">Bybit Linear</span>
+        <h4 class="text-xs font-bold uppercase text-gray-400 tracking-wider">Dynamic Oscillator Status</h4>
+        <span class="text-[8px] uppercase tracking-wider font-bold bg-[#0B0E11] border border-[#20262D] px-1.5 py-0.5 rounded text-[#F0B90B] font-mono">Bybit Linear</span>
     </div>
 
     <div class="space-y-2 text-xs">
-        <div class="flex justify-between items-center p-2 rounded-xl bg-slate-950/50">
-            <span class="text-[10px] text-slate-400 font-medium">EMA 9 / 21 Trend Zone</span>
+        <div class="flex justify-between items-center p-2 rounded-xl bg-[#0B0E11]/50">
+            <span class="text-[10px] text-gray-400 font-medium">EMA 9 / 21 Trend Zone</span>
             <span id="emaStatusCell" class="font-bold text-[10px]">Processing...</span>
         </div>
-        <div class="flex justify-between items-center p-2 rounded-xl bg-slate-950/50">
-            <span class="text-[10px] text-slate-400 font-medium">Relative Strength Index (RSI)</span>
+        <div class="flex justify-between items-center p-2 rounded-xl bg-[#0B0E11]/50">
+            <span class="text-[10px] text-gray-400 font-medium">Relative Strength Index (RSI)</span>
             <span id="rsiStatusCell" class="font-bold text-[10px]">Processing...</span>
         </div>
-        <div class="flex justify-between items-center p-2 rounded-xl bg-slate-950/50">
-            <span class="text-[10px] text-slate-400 font-medium">Active volume signals</span>
+        <div class="flex justify-between items-center p-2 rounded-xl bg-[#0B0E11]/50">
+            <span class="text-[10px] text-gray-400 font-medium">Active volume signals</span>
             <span id="volStatusCell" class="font-bold text-[10px]">Processing...</span>
         </div>
     </div>
@@ -181,7 +181,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // Draw background guide grid lines
     for (let j = 0.2; j < 1.0; j += 0.2) {
         let gridY = candleHeight * j;
-        candleHtml += `<line x1="0" y1="${gridY}" x2="${candleWidth}" y2="${gridY}" stroke="#0f172a" stroke-dasharray="3,3"/>`;
+        candleHtml += `<line x1="0" y1="${gridY}" x2="${candleWidth}" y2="${gridY}" stroke="#1B2026" stroke-dasharray="3,3"/>`;
     }
 
     let ema9Pts = [];
@@ -195,7 +195,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const cyLow = getY(d.low);
 
         const isGreen = d.close >= d.open;
-        const color = isGreen ? "#10b981" : "#ef4444"; // high-contrast emerald or red
+        const color = isGreen ? "#03C087" : "#F04F56"; // Up/Down candle color scheme of Bybit
 
         // Gather coordinates for EMAs
         if (d.ema9 !== null) ema9Pts.push(`${cx},${getY(d.ema9)}`);
@@ -208,7 +208,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const rectH = Math.max(2, Math.abs(cyOpen - cyClose));
         const rectW = Math.max(3, (candleWidth / chartData.length) * 0.62);
         
-        candleHtml += `<rect x="${cx - rectW/2}" y="${rectY}" width="${rectW}" height="${rectH}" fill="${color}" rx="1"/>`;
+        candleHtml += `<rect x="${cx - rectW/2}" y="${rectY}" width="${rectW}" height="${rectH}" fill="${color}" rx="0.5"/>`;
 
         // Draw crossover signal markers (triangles)
         if (hasIndicators && d.trend && i > 1) {
@@ -216,10 +216,10 @@ document.addEventListener("DOMContentLoaded", function() {
             if (prev.trend !== d.trend) {
                 if (d.trend === 'BULL') {
                     // Buy signal triangle under low wick
-                    candleHtml += `<polygon points="${cx},${cyLow + 4} ${cx - 4},${cyLow + 11} ${cx + 4},${cyLow + 11}" fill="#10b981"/>`;
+                    candleHtml += `<polygon points="${cx},${cyLow + 4} ${cx - 4},${cyLow + 11} ${cx + 4},${cyLow + 11}" fill="#03C087"/>`;
                 } else if (d.trend === 'BEAR') {
                     // Sell signal triangle above high wick
-                    candleHtml += `<polygon points="${cx},${cyHigh - 4} ${cx - 4},${cyHigh - 11} ${cx + 4},${cyHigh - 11}" fill="#ef4444"/>`;
+                    candleHtml += `<polygon points="${cx},${cyHigh - 4} ${cx - 4},${cyHigh - 11} ${cx + 4},${cyHigh - 11}" fill="#F04F56"/>`;
                 }
             }
         }
@@ -228,10 +228,10 @@ document.addEventListener("DOMContentLoaded", function() {
     // Draw EMA trend lines if allowed
     if (hasIndicators) {
         if (ema9Pts.length > 1) {
-            candleHtml += `<polyline points="${ema9Pts.join(" ")}" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>`;
+            candleHtml += `<polyline points="${ema9Pts.join(" ")}" fill="none" stroke="#F0B90B" stroke-width="1.8" stroke-linecap="round"/>`;
         }
         if (ema21Pts.length > 1) {
-            candleHtml += `<polyline points="${ema21Pts.join(" ")}" fill="none" stroke="#a855f7" stroke-width="1.8" stroke-linecap="round"/>`;
+            candleHtml += `<polyline points="${ema21Pts.join(" ")}" fill="none" stroke="#9064FA" stroke-width="1.8" stroke-linecap="round"/>`;
         }
     }
 
@@ -242,7 +242,7 @@ document.addEventListener("DOMContentLoaded", function() {
     chartData.forEach((d, i) => {
         const cx = getX(i);
         const isGreen = d.close >= d.open;
-        const color = isGreen ? "#10b98135" : "#ef444435"; // washed opacity representation
+        const color = isGreen ? "#03C08735" : "#F04F5635"; // washed opacity representation
         const h = (d.volume / maxVol) * (volHeight - 10) + 2;
         const rectW = Math.max(3, (volWidth / chartData.length) * 0.62);
 
@@ -259,8 +259,8 @@ document.addEventListener("DOMContentLoaded", function() {
         const y70 = rsiHeight - (70 / 100) * (rsiHeight - 12) - 6;
         const y30 = rsiHeight - (30 / 100) * (rsiHeight - 12) - 6;
         
-        rsiHtml += `<line x1="0" y1="${y70}" x2="${rsiWidth}" y2="${y70}" stroke="#ef444430" stroke-dasharray="2,2"/>`;
-        rsiHtml += `<line x1="0" y1="${y30}" x2="${rsiWidth}" y2="${y30}" stroke="#10b98130" stroke-dasharray="2,2"/>`;
+        rsiHtml += `<line x1="0" y1="${y70}" x2="${rsiWidth}" y2="${y70}" stroke="#F04F5630" stroke-dasharray="2,2"/>`;
+        rsiHtml += `<line x1="0" y1="${y30}" x2="${rsiWidth}" y2="${y30}" stroke="#03C08730" stroke-dasharray="2,2"/>`;
 
         chartData.forEach((d, i) => {
             const cx = getX(i);
@@ -270,7 +270,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
 
         if (rsiPts.length > 1) {
-            rsiHtml += `<polyline points="${rsiPts.join(" ")}" fill="none" stroke="#6366f1" stroke-width="1.8"/>`;
+            rsiHtml += `<polyline points="${rsiPts.join(" ")}" fill="none" stroke="#38BDF8" stroke-width="1.8"/>`;
         }
         rsiSvg.innerHTML = rsiHtml;
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TrendingUp,
   Coins,
@@ -131,9 +131,120 @@ export interface SseEvent {
   time: string;
 }
 
+export interface Drawing {
+  id: string;
+  type: 'line' | 'channel';
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  channelHeight?: number;
+}
+
 export default function App() {
   // Multilingual active locale state
   const [lang, setLang] = useState<'en' | 'es' | 'zh'>('en');
+
+  // SVG Chart interactive drawing annotations states
+  const [selectedTool, setSelectedTool] = useState<'none' | 'line' | 'channel'>('none');
+  const [selectedDrawingColor, setSelectedDrawingColor] = useState<string>('#00FFA3');
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [drawingStart, setDrawingStart] = useState<{ x: number; y: number } | null>(null);
+  const [currentDrawing, setCurrentDrawing] = useState<Drawing | null>(null);
+  const [channelHeight, setChannelHeight] = useState<number>(-24); // default parallel channel spacing
+
+  const chartSvgRef = useRef<SVGSVGElement | null>(null);
+
+  const getSvgCoordinates = (
+    e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>
+  ) => {
+    if (!chartSvgRef.current) return null;
+    const rect = chartSvgRef.current.getBoundingClientRect();
+    
+    let clientX, clientY;
+    if ('touches' in e) {
+      if (e.touches.length === 0) return null;
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  };
+
+  const handleStartDrawing = (
+    e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>
+  ) => {
+    if (selectedTool === 'none') return;
+    
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    const coords = getSvgCoordinates(e);
+    if (!coords) return;
+
+    setDrawingStart(coords);
+    setCurrentDrawing({
+      id: 'preview',
+      type: selectedTool === 'channel' ? 'channel' : 'line',
+      x1: coords.x,
+      y1: coords.y,
+      x2: coords.x,
+      y2: coords.y,
+      color: selectedDrawingColor,
+      channelHeight: channelHeight
+    });
+  };
+
+  const handleDragDrawing = (
+    e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>
+  ) => {
+    if (selectedTool === 'none' || !drawingStart || !currentDrawing) return;
+
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    const coords = getSvgCoordinates(e);
+    if (!coords) return;
+
+    setCurrentDrawing(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        x2: coords.x,
+        y2: coords.y
+      };
+    });
+  };
+
+  const handleEndDrawing = () => {
+    if (selectedTool === 'none' || !drawingStart || !currentDrawing) return;
+
+    const dx = currentDrawing.x2 - currentDrawing.x1;
+    const dy = currentDrawing.y2 - currentDrawing.y1;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 5) {
+      const newDrawing: Drawing = {
+        ...currentDrawing,
+        id: 'drawing-' + Date.now(),
+        channelHeight: channelHeight
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      triggerFlash('success', `Added active ${currentDrawing.type === 'channel' ? 'trend channel' : 'trendline'} level!`);
+    }
+
+    setDrawingStart(null);
+    setCurrentDrawing(null);
+  };
 
   // Simulator state configurations
   const [user, setUser] = useState<SimulatorUser>({
@@ -914,10 +1025,113 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className={`w-full h-44 bg-[#0A0A0B] rounded-2xl relative border border-[#222] mt-4.5 overflow-hidden flex items-end transition-all duration-300 ${isChangingTimeframe ? 'opacity-30 scale-[0.98] blur-[0.5px]' : 'opacity-100 scale-100 blur-0'}`}>
+                  {/* Annotation Toolbar Panel */}
+                  <div className="mt-11 mb-3 bg-[#0A0A0B]/60 border border-[#222] rounded-xl p-2.5 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-bold text-[#00FFA3] uppercase tracking-widest font-mono">
+                        ✏️ Technical Drawer tools
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {/* Undo & Clear */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (drawings.length > 0) {
+                              setDrawings(prev => prev.slice(0, -1));
+                              triggerFlash('success', 'Removed last technical annotation.');
+                            }
+                          }}
+                          disabled={drawings.length === 0}
+                          className="px-2 py-0.5 text-[8px] bg-gray-950/60 hover:bg-gray-900 disabled:opacity-40 text-gray-300 font-mono font-bold rounded border border-[#222] cursor-pointer"
+                        >
+                          Undo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (drawings.length > 0) {
+                              setDrawings([]);
+                              triggerFlash('success', 'Cleared all chart annotations.');
+                            }
+                          }}
+                          disabled={drawings.length === 0}
+                          className="px-2 py-0.5 text-[8px] bg-red-950/20 hover:bg-red-950/45 disabled:opacity-40 text-red-400 font-mono font-bold rounded border border-red-900/40 cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] items-center">
+                      {/* Tool Selectors */}
+                      <div className="flex bg-[#151619] border border-[#222] p-0.5 rounded-lg">
+                        {(['none', 'line', 'channel'] as const).map(tool => (
+                          <button
+                            key={tool}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTool(tool);
+                              triggerFlash('success', tool === 'none' ? 'Annotations off. Touch and drag chart standard.' : `Active: ${tool === 'line' ? 'Trendline' : 'Trend Channel'}. Drag to align levels.`);
+                            }}
+                            className={`flex-1 py-1 text-[8px] font-mono font-black uppercase rounded transition cursor-pointer text-center
+                              ${selectedTool === tool ? 'bg-[#00FFA3] text-black' : 'text-gray-500 hover:text-gray-300'}`}
+                          >
+                            {tool === 'none' ? 'Cursor' : tool === 'line' ? 'Line' : 'Channel'}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Color dots picker */}
+                      <div className="flex justify-around items-center bg-[#151619] border border-[#222] py-1 px-1.5 rounded-lg">
+                        {['#00FFA3', '#FF4D4D', '#F0B90B', '#7047EB', '#00E5FF'].map(col => (
+                          <button
+                            key={col}
+                            type="button"
+                            onClick={() => setSelectedDrawingColor(col)}
+                            style={{ backgroundColor: col }}
+                            className={`w-3 h-3 rounded-full border transition-transform duration-100 cursor-pointer
+                              ${selectedDrawingColor === col ? 'scale-125 border-white ring-1 ring-[#00FFA3]' : 'border-black/50 hover:scale-110'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Channel width adjustment slider */}
+                    {selectedTool === 'channel' && (
+                      <div className="flex items-center gap-2 mt-0.5 bg-[#151619]/60 p-1.5 rounded-lg border border-[#222]/50">
+                        <span className="text-[7.5px] font-mono text-gray-400 uppercase tracking-tight whitespace-nowrap">
+                          Width: <strong className="text-white font-mono font-bold">{Math.abs(channelHeight)}px</strong>
+                        </span>
+                        <input
+                          type="range"
+                          min="10"
+                          max="60"
+                          value={Math.abs(channelHeight)}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setChannelHeight(-val);
+                          }}
+                          className="flex-1 h-1 bg-gray-950 rounded-lg appearance-none cursor-pointer accent-[#00FFA3]"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={`w-full h-44 bg-[#0A0A0B] rounded-2xl relative border border-[#222] overflow-hidden flex items-end transition-all duration-300 ${isChangingTimeframe ? 'opacity-30 scale-[0.98] blur-[0.5px]' : 'opacity-100 scale-100 blur-0'}`}>
                     
                     {/* SVG canvas with key for retriggering css animation */}
-                    <svg key={timeframe} className="absolute inset-0 w-full h-full chart-transition">
+                    <svg
+                      key={timeframe}
+                      ref={chartSvgRef}
+                      onMouseDown={handleStartDrawing}
+                      onMouseMove={handleDragDrawing}
+                      onMouseUp={handleEndDrawing}
+                      onMouseLeave={handleEndDrawing}
+                      onTouchStart={handleStartDrawing}
+                      onTouchMove={handleDragDrawing}
+                      onTouchEnd={handleEndDrawing}
+                      className={`absolute inset-0 w-full h-full ${selectedTool !== 'none' ? 'cursor-crosshair touch-none select-none' : 'chart-transition'}`}
+                    >
                       {/* Gridline guides */}
                       {[0.25, 0.5, 0.75].map((p, k) => (
                         <line key={k} x1="0" y1={`${176 * p}`} x2="350" y2={`${176 * p}`} stroke="#151619" strokeDasharray="3,3" />
@@ -950,6 +1164,98 @@ export default function App() {
                           </g>
                         );
                       })}
+
+                      {/* Render SAVED Drawings */}
+                      {drawings.map((drawing) => {
+                        const h = drawing.channelHeight ?? -24;
+                        const isChannel = drawing.type === 'channel';
+                        return (
+                          <g key={drawing.id}>
+                            {/* Shaded area for channel */}
+                            {isChannel && (
+                              <polygon
+                                points={`${drawing.x1},${drawing.y1} ${drawing.x2},${drawing.y2} ${drawing.x2},${drawing.y2 + h} ${drawing.x1},${drawing.y1 + h}`}
+                                fill={drawing.color}
+                                fillOpacity="0.15"
+                              />
+                            )}
+                            
+                            {/* Primary baseline */}
+                            <line
+                              x1={drawing.x1}
+                              y1={drawing.y1}
+                              x2={drawing.x2}
+                              y2={drawing.y2}
+                              stroke={drawing.color}
+                              strokeWidth="2"
+                              strokeDasharray={isChannel ? '2,2' : 'none'}
+                            />
+
+                            {/* Secondary parallel channel line */}
+                            {isChannel && (
+                              <line
+                                x1={drawing.x1}
+                                y1={drawing.y1 + h}
+                                x2={drawing.x2}
+                                y2={drawing.y2 + h}
+                                stroke={drawing.color}
+                                strokeWidth="2"
+                              />
+                            )}
+
+                            {/* Accent indicator dots for drawings */}
+                            <circle cx={drawing.x1} cy={drawing.y1} r="2.5" fill={drawing.color} />
+                            <circle cx={drawing.x2} cy={drawing.y2} r="2.5" fill={drawing.color} />
+                            {isChannel && (
+                              <>
+                                <circle cx={drawing.x1} cy={drawing.y1 + h} r="2.5" fill={drawing.color} />
+                                <circle cx={drawing.x2} cy={drawing.y2 + h} r="2.5" fill={drawing.color} />
+                              </>
+                            )}
+                          </g>
+                        );
+                      })}
+
+                      {/* Render ACTIVE Drawing (While Dragging) */}
+                      {currentDrawing && (
+                        <g>
+                          {currentDrawing.type === 'channel' && (
+                            <>
+                              {/* Parallel shaded background */}
+                              <polygon
+                                points={`${currentDrawing.x1},${currentDrawing.y1} ${currentDrawing.x2},${currentDrawing.y2} ${currentDrawing.x2},${currentDrawing.y2 + channelHeight} ${currentDrawing.x1},${currentDrawing.y1 + channelHeight}`}
+                                fill={currentDrawing.color}
+                                fillOpacity="0.25"
+                                stroke={currentDrawing.color}
+                                strokeDasharray="1,2"
+                                strokeWidth="0.5"
+                              />
+                              {/* Parallel Line */}
+                              <line
+                                x1={currentDrawing.x1}
+                                y1={currentDrawing.y1 + channelHeight}
+                                x2={currentDrawing.x2}
+                                y2={currentDrawing.y2 + channelHeight}
+                                stroke={currentDrawing.color}
+                                strokeWidth="2"
+                              />
+                            </>
+                          )}
+                          {/* Baseline */}
+                          <line
+                            x1={currentDrawing.x1}
+                            y1={currentDrawing.y1}
+                            x2={currentDrawing.x2}
+                            y2={currentDrawing.y2}
+                            stroke={currentDrawing.color}
+                            strokeWidth="2.5"
+                            strokeDasharray={currentDrawing.type === 'channel' ? '2,2' : 'none'}
+                          />
+                          {/* Highlight handle indicators */}
+                          <circle cx={currentDrawing.x1} cy={currentDrawing.y1} r="3.5" fill="#FFFFFF" stroke={currentDrawing.color} strokeWidth="1.5" />
+                          <circle cx={currentDrawing.x2} cy={currentDrawing.y2} r="3.5" fill="#FFFFFF" stroke={currentDrawing.color} strokeWidth="1.5" />
+                        </g>
+                      )}
                     </svg>
                   </div>
 

@@ -45,9 +45,9 @@ function saas_gate_signal($signal) {
     }
     
     // Free tier signals have restricted access: hide entry/tp/sl or hide high-confidence signals
-    $signal['entry_price'] = '🔒 VIP Upgrade';
-    $signal['target_price'] = '🔒 VIP Upgrade';
-    $signal['stop_loss'] = '🔒 VIP Upgrade';
+    $signal['entry'] = '🔒 VIP';
+    $signal['tp'] = '🔒 VIP';
+    $signal['sl'] = '🔒 VIP';
     $signal['confidence'] = '🔒';
     return $signal;
 }

@@ -1,4 +1,11 @@
 -- TradeNexa.com - Database Installer SQL
+-- =========================================================
+-- ⚠️ ARCHITECTURAL MASTER CONSTRAINT (DO NOT REMOVE) ⚠️
+-- 1. Strictly ONLY PHP 7.4+ and native MySQLi API.
+--    No PDO (`PDO`), ORMs, or external frameworks are permitted.
+-- 2. 100% Dependency-Free Production Runtime environment.
+-- 3. Double-entry ledger architecture enforces audit trail (no atomic increments).
+-- =========================================================
 -- Production-Ready for PHP 7.4+ & MySQLi
 
 -- --------------------------------------------------------
@@ -111,20 +118,100 @@ CREATE TABLE IF NOT EXISTS `messages` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
+-- Table structure for table `push_notifications`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `push_notifications` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `event_type` VARCHAR(50) NOT NULL, -- 'signal_alert', 'market_alert', 'admin_msg'
+  `title` VARCHAR(255) NOT NULL,
+  `message` TEXT NOT NULL,
+  `metadata` TEXT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX (`created_at`),
+  INDEX (`event_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table structure for table `price_alerts`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `price_alerts` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `symbol` VARCHAR(20) NOT NULL,
+  `target_price` DECIMAL(18,8) NOT NULL,
+  `direction` ENUM('above', 'below') NOT NULL,
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  INDEX (`user_id`),
+  INDEX (`symbol`),
+  INDEX (`active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table structure for table `referrals`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `referrals` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NULL,
+  `telegram_id` VARCHAR(100) NULL,
+  `referee_username` VARCHAR(100) NOT NULL,
+  `registered_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `reward_days` INT NOT NULL DEFAULT 7,
+  `status` ENUM('pending', 'claimed') NOT NULL DEFAULT 'claimed',
+  INDEX (`referee_username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table structure for table `investment_vaults`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `investment_vaults` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `principal` DECIMAL(18,8) NOT NULL,
+  `token` ENUM('USDT', 'TON') NOT NULL DEFAULT 'USDT',
+  `apy_rate` DECIMAL(5,2) NOT NULL,
+  `daily_accrual` DECIMAL(18,8) NOT NULL,
+  `remaining_days` INT NOT NULL DEFAULT 30,
+  `status` ENUM('active', 'completed') NOT NULL DEFAULT 'active',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  INDEX (`user_id`),
+  INDEX (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table structure for table `connected_wallets`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `connected_wallets` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `wallet_address` VARCHAR(255) NOT NULL,
+  `wallet_provider` VARCHAR(50) NOT NULL, -- 'keeper', 'trust_wallet', 'ton_keeper'
+  `connected_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  UNIQUE KEY `user_wallet` (`user_id`, `wallet_address`),
+  INDEX (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
 -- Seed Initial Base Settings
 -- --------------------------------------------------------
 INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
-('site_name', 'TradeNexa'),
+('site_name', 'Bybit Intel'),
 ('bybit_api_url', 'https://api.bybit.com/v5/market'),
 ('bybit_api_key', 'db_admin_bybit_read_key'),
 ('bybit_api_secret', 'db_admin_bybit_secret_secure_key'),
+('telegram_bot_token', 'bot7594032148:AAFl_M392810_SecureKey'),
+('telegram_webhook_url', 'https://tradenexa.com/app/webhooks/telegram_webhook.php'),
+('lang_default', 'en'),
 ('signal_sensitivity', 'medium'),
-('ai_strength_tuning', '90'),
+('ai_strength_tuning', '95'),
 ('pricing_pro', '29.99'),
 ('pricing_vip', '79.99'),
 ('ads_enabled', '1'),
 ('maintenance_alert_active', '1'),
-('maintenance_alert_msg', 'Scheduled system-wide backup in progress. Rest assured, your ledger calculations are offline immutable!')
+('maintenance_alert_msg', 'Bybit Real-time indicators are live synchronized. Server running via supercharged PHP 8.2 backend.')
 ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);
 
 -- --------------------------------------------------------
