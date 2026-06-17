@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
   Coins,
@@ -27,10 +27,22 @@ import {
   Check,
   Award,
   Zap,
-  ArrowRightLeft
+  ArrowRightLeft,
+  X,
+  CreditCard,
+  Percent,
+  ListFilter,
+  EyeOff,
+  LayoutGrid,
+  Laptop
 } from 'lucide-react';
 import { PHP_SOURCES } from './php_sources';
-import { SimulatorUser, Ledgers, Signals, Bulletins, AdCampaigns } from './types';
+import { SimulatorUser, Ledgers, Signals, Bulletins, AdCampaigns, PriceAlert, InvestmentVault, SseEvent, Drawing } from './types';
+
+// Modular Component Imports
+import TradingViewChart from './components/TradingViewChart';
+import PaystackSim from './components/PaystackSim';
+import YieldVault from './components/YieldVault';
 
 // Multilingual Cockpit Translations Dictionaries
 const TRANSLATIONS = {
@@ -51,11 +63,18 @@ const TRANSLATIONS = {
     deposit: "Deposit",
     investmentSystem: "Smart Yield Vault (Invest to Trade)",
     walletConnect: "Web3 Wallet Portal",
-    alerts: "Dynamic Price Alerts",
+    alerts: "Price Alarms",
     onboarding: "Onboarding Tour",
     telemetry: "Telemetry overlays",
     auditBook: "Audit Book Ledger",
-    bybitMkt: "Bybit Linear Market Feed"
+    bybitMkt: "Bybit Linear Market Feed",
+    dashboard: "Dashboard",
+    developerCockpit: "Developer Cockpit",
+    trade: "Trade",
+    wallet: "Wallet",
+    history: "Histories Log",
+    performanceMode: "Performance Low Mode",
+    performanceModeDesc: "Reduce ticker latency & freeze animations to save resources on older devices."
   },
   es: {
     title: "CABINA TRADENEXA.AI",
@@ -74,11 +93,18 @@ const TRANSLATIONS = {
     deposit: "Depositar",
     investmentSystem: "Bóveda de Rendimiento Inteligente",
     walletConnect: "Portal de Billetera Web3",
-    alerts: "Alertas de Precios Activas",
+    alerts: "Alarmas de Precio",
     onboarding: "Tour de Bienvenida",
     telemetry: "Superposiciones de telemetría",
     auditBook: "Libro Contable Auditado",
-    bybitMkt: "Feed de Mercado Bybit"
+    bybitMkt: "Feed de Mercado Bybit",
+    dashboard: "Panel",
+    developerCockpit: "Cabina de Códigos",
+    trade: "Operar",
+    wallet: "Billetera",
+    history: "Historiales",
+    performanceMode: "Modo de Rendimiento Bajo",
+    performanceModeDesc: "Reduce la latencia de los tickers y congela animaciones en dispositivos antiguos."
   },
   zh: {
     title: "TRADENEXA.AI 智能舱",
@@ -101,172 +127,57 @@ const TRANSLATIONS = {
     onboarding: "新手指引通关大礼包",
     telemetry: "高阶量化指标图层",
     auditBook: "哈希级双向资金对账账本",
-    bybitMkt: "Bybit 永续合约官方行情源"
+    bybitMkt: "Bybit 永续合约官方行情源",
+    dashboard: "账户首页",
+    developerCockpit: "后台源码解析",
+    trade: "合约操作",
+    wallet: "资金划转",
+    history: "多维对账单",
+    performanceMode: "极限省电低配模式",
+    performanceModeDesc: "减缓行情更新速度并冻结动画，以降低低端安卓手机的发热和卡顿。"
   }
 };
 
-export interface PriceAlert {
-  id: number;
-  symbol: string;
-  targetPrice: number;
-  direction: 'above' | 'below';
-  active: boolean;
-}
-
-export interface InvestmentVault {
-  id: number;
-  amount: number;
-  token: 'USDT' | 'TON';
-  apy: number;
-  interestAccrued: number;
-  daysRemaining: number;
-  date: string;
-}
-
-export interface SseEvent {
-  id: number;
-  event: string;
-  title: string;
-  message: string;
-  time: string;
-}
-
-export interface Drawing {
-  id: string;
-  type: 'line' | 'channel';
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  color: string;
-  channelHeight?: number;
-}
-
 export default function App() {
-  // Multilingual active locale state
+  // Multilingual and responsive layout states
   const [lang, setLang] = useState<'en' | 'es' | 'zh'>('en');
+  const [splitView, setSplitView] = useState<boolean>(true); // Split view with phone simulator vs true widescreen mode!
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'markets' | 'trade' | 'wallet' | 'history' | 'settings'>('dashboard');
 
   // SVG Chart interactive drawing annotations states
   const [selectedTool, setSelectedTool] = useState<'none' | 'line' | 'channel'>('none');
   const [selectedDrawingColor, setSelectedDrawingColor] = useState<string>('#00FFA3');
   const [drawings, setDrawings] = useState<Drawing[]>([]);
-  const [drawingStart, setDrawingStart] = useState<{ x: number; y: number } | null>(null);
-  const [currentDrawing, setCurrentDrawing] = useState<Drawing | null>(null);
   const [channelHeight, setChannelHeight] = useState<number>(-24); // default parallel channel spacing
 
-  const chartSvgRef = useRef<SVGSVGElement | null>(null);
-
-  const getSvgCoordinates = (
-    e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>
-  ) => {
-    if (!chartSvgRef.current) return null;
-    const rect = chartSvgRef.current.getBoundingClientRect();
-    
-    let clientX, clientY;
-    if ('touches' in e) {
-      if (e.touches.length === 0) return null;
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-  };
-
-  const handleStartDrawing = (
-    e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>
-  ) => {
-    if (selectedTool === 'none') return;
-    
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
-    const coords = getSvgCoordinates(e);
-    if (!coords) return;
-
-    setDrawingStart(coords);
-    setCurrentDrawing({
-      id: 'preview',
-      type: selectedTool === 'channel' ? 'channel' : 'line',
-      x1: coords.x,
-      y1: coords.y,
-      x2: coords.x,
-      y2: coords.y,
-      color: selectedDrawingColor,
-      channelHeight: channelHeight
-    });
-  };
-
-  const handleDragDrawing = (
-    e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>
-  ) => {
-    if (selectedTool === 'none' || !drawingStart || !currentDrawing) return;
-
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
-    const coords = getSvgCoordinates(e);
-    if (!coords) return;
-
-    setCurrentDrawing(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        x2: coords.x,
-        y2: coords.y
-      };
-    });
-  };
-
-  const handleEndDrawing = () => {
-    if (selectedTool === 'none' || !drawingStart || !currentDrawing) return;
-
-    const dx = currentDrawing.x2 - currentDrawing.x1;
-    const dy = currentDrawing.y2 - currentDrawing.y1;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance > 5) {
-      const newDrawing: Drawing = {
-        ...currentDrawing,
-        id: 'drawing-' + Date.now(),
-        channelHeight: channelHeight
-      };
-      setDrawings(prev => [...prev, newDrawing]);
-      triggerFlash('success', `Added active ${currentDrawing.type === 'channel' ? 'trend channel' : 'trendline'} level!`);
-    }
-
-    setDrawingStart(null);
-    setCurrentDrawing(null);
-  };
-
-  // Simulator state configurations
+  // Simulator State Configurations
   const [user, setUser] = useState<SimulatorUser>({
     id: 1,
     email: 'admin@saas.com',
     plan: 'free',
     status: 'active',
-    balance: 500.00,
+    balance: 852.00,
     createdAt: '2026-06-16'
   });
 
-  const [activeTab, setActiveTab] = useState<'markets' | 'signals' | 'charts' | 'ledger' | 'profile' | 'admin'>('markets');
   const [selectedSymbol, setSelectedSymbol] = useState<'BTCUSDT' | 'ETHUSDT' | 'SOLUSDT' | 'ADAUSDT'>('BTCUSDT');
-  const [timeframe, setTimeframe] = useState<'1m' | '5m' | '15m' | '1h' | '1d'>('1h');
+  const [timeframe, setTimeframe] = useState<'1m' | '5m' | '15m' | '1h' | '1d'>('15m');
   const [isChangingTimeframe, setIsChangingTimeframe] = useState<boolean>(false);
-  
-  // Indicator Toggles State
   const [indicatorsEnabled, setIndicatorsEnabled] = useState<boolean>(true);
-  
-  // Custom interactive mock lists
+  const [performanceMode, setPerformanceMode] = useState<boolean>(false);
+
+  // Dynamic Open Position with simulated PnL
+  const [openPositions, setOpenPositions] = useState<any[]>([
+    { id: 1, symbol: 'BTCUSDT', type: 'LONG', size: 0.15, entryPrice: 68150.00, lev: 20, pnl: 45.50 }
+  ]);
+
+  // Staking Investment pools state
+  const [investedPools, setInvestedPools] = useState<InvestmentVault[]>([
+    { id: 1, amount: 200, token: 'USDT', apy: 15.5, interestAccrued: 1.45, daysRemaining: 30, date: '2026-06-16', status: 'active' }
+  ]);
+
   const [ledgers, setLedgers] = useState<Ledgers[]>([
-    { id: 1, type: 'credit', amount: 500.00, reason: 'Sandbox Environment Capitalization', balanceAfter: 500.00, timestamp: '2026-06-16 12:00:00' }
+    { id: 1, type: 'credit', amount: 852.00, reason: 'Seeded Master Ledger Balance Injection', balanceAfter: 852.00, timestamp: '2026-06-16 12:00:00' }
   ]);
 
   const [bulletins, setBulletins] = useState<Bulletins[]>([
@@ -282,7 +193,7 @@ export default function App() {
   // Flash Notifications UI
   const [flash, setFlash] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Dynamic values state for Markets Tickers
+  // Dynamic Ticker Prices
   const [tickerPrices, setTickerPrices] = useState({
     BTCUSDT: { price: 68425.40, change: 2.15, vol: 8145.2 },
     ETHUSDT: { price: 3512.80, change: -1.04, vol: 924.5 },
@@ -290,28 +201,25 @@ export default function App() {
     ADAUSDT: { price: 0.442, change: -0.12, vol: 152.0 }
   });
 
-  // Web3 wallets states
+  // Hot tickers search state
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Web3 Connection states
   const [connectedWallet, setConnectedWallet] = useState<string | null>(null);
-  const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
   const [tonBalance, setTonBalance] = useState<number>(0.0);
 
-  // Price alarms list state (Custom price alerts)
+  // Price Alarms
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([
     { id: 1, symbol: 'BTCUSDT', targetPrice: 68500, direction: 'above', active: true },
     { id: 2, symbol: 'SOLUSDT', targetPrice: 142, direction: 'below', active: true }
   ]);
   const [triggeredAlerts, setTriggeredAlerts] = useState<string[]>([]);
 
-  // Staking investment vaults
-  const [investedPools, setInvestedPools] = useState<InvestmentVault[]>([
-    { id: 1, amount: 200, token: 'USDT', apy: 15.5, interestAccrued: 1.45, daysRemaining: 30, date: '2026-06-16' }
-  ]);
-
   // Step-by-step Onboarding flow
   const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
   const [onboardingStep, setOnboardingStep] = useState<number>(1);
 
-  // Admin Module Control States (Globally toggle signals, Bybit API endpoints, Tier prices, and alerts)
+  // Admin Module Control States
   const [signalSensitivity, setSignalSensitivity] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
   const [bybitApiEndpoint, setBybitApiEndpoint] = useState<string>('https://api.bybit.com/v5/market');
   const [bybitApiKey, setBybitApiKey] = useState<string>('db_admin_bybit_read_key');
@@ -328,7 +236,7 @@ export default function App() {
     { id: 2, event: 'SSE_TG_WEBHOOK', title: 'Telegram Command Triggered', message: 'User index @tg_trader requested /signals status.', time: '16:11:04' }
   ]);
 
-  // Code Viewer state
+  // Code Explorer state
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
@@ -336,8 +244,8 @@ export default function App() {
   const [ledgerPage, setLedgerPage] = useState<number>(1);
   const ledgerLimit = 3;
 
-  // Signal detail breakdown / explanation modal
-  const [selectedSignalDetail, setSelectedSignalDetail] = useState<Signals | null>(null);
+  // Notification lists state
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
 
   // Translations fetch shortener
   const t = (key: keyof typeof TRANSLATIONS['en']): string => {
@@ -348,23 +256,33 @@ export default function App() {
   const handleTimeframeChange = (tf: typeof timeframe) => {
     setIsChangingTimeframe(true);
     setTimeframe(tf);
-    setTimeout(() => setIsChangingTimeframe(false), 220);
+    setTimeout(() => setIsChangingTimeframe(false), 240);
   };
 
-  // Simulated live ticker updater logic + Alerts checker
+  // Simulated live prices updating intervals + Alerts Trigger Check
   useEffect(() => {
+    // If performanceMode is true, we update price events very slowly to save resource
+    const intervalTicks = performanceMode ? 10000 : 3500;
     const timer = setInterval(() => {
       setTickerPrices(prev => {
-        const updateVal = (val: number, multiplier = 0.0005) => {
-          const delta = val * multiplier * (Math.random() - 0.48);
+        const updateVal = (val: number, multiplier = 0.0006) => {
+          const delta = val * multiplier * (Math.random() - 0.49);
           return Number((val + delta).toFixed(3));
         };
         const next = {
-          BTCUSDT: { price: updateVal(prev.BTCUSDT.price), change: Number((prev.BTCUSDT.change + (Math.random() - 0.5) * 0.1).toFixed(2)), vol: prev.BTCUSDT.vol },
-          ETHUSDT: { price: updateVal(prev.ETHUSDT.price), change: Number((prev.ETHUSDT.change + (Math.random() - 0.5) * 0.1).toFixed(2)), vol: prev.ETHUSDT.vol },
-          SOLUSDT: { price: updateVal(prev.SOLUSDT.price), change: Number((prev.SOLUSDT.change + (Math.random() - 0.5) * 0.15).toFixed(2)), vol: prev.SOLUSDT.vol },
-          ADAUSDT: { price: updateVal(prev.ADAUSDT.price), change: Number((prev.ADAUSDT.change + (Math.random() - 0.5) * 0.08).toFixed(3)), vol: prev.ADAUSDT.vol }
+          BTCUSDT: { price: updateVal(prev.BTCUSDT.price), change: Number((prev.BTCUSDT.change + (Math.random() - 0.5) * 0.12).toFixed(2)), vol: prev.BTCUSDT.vol },
+          ETHUSDT: { price: updateVal(prev.ETHUSDT.price), change: Number((prev.ETHUSDT.change + (Math.random() - 0.5) * 0.08).toFixed(2)), vol: prev.ETHUSDT.vol },
+          SOLUSDT: { price: updateVal(prev.SOLUSDT.price), change: Number((prev.SOLUSDT.change + (Math.random() - 0.5) * 0.18).toFixed(2)), vol: prev.SOLUSDT.vol },
+          ADAUSDT: { price: updateVal(prev.ADAUSDT.price), change: Number((prev.ADAUSDT.change + (Math.random() - 0.5) * 0.05).toFixed(3)), vol: prev.ADAUSDT.vol }
         };
+
+        // Live updating Position PnL
+        setOpenPositions(positions => positions.map(pos => {
+          const currentPrice = next[pos.symbol as keyof typeof next]?.price;
+          const currentChange = pos.type === 'LONG' ? (currentPrice - pos.entryPrice) : (pos.entryPrice - currentPrice);
+          const posPnl = currentChange * pos.size * pos.lev;
+          return { ...pos, pnl: Number(posPnl.toFixed(2)) };
+        }));
 
         // Run price alert criteria checks
         priceAlerts.forEach(alert => {
@@ -389,7 +307,7 @@ export default function App() {
                   id: prevSse.length + 1,
                   event: 'SSE_MARKET_ALERT',
                   title: 'Price Threshold Crossed',
-                  message: `${alert.symbol} touched ${alert.targetPrice} standard.`,
+                  message: `${alert.symbol} touched ${alert.targetPrice} on server index.`,
                   time: timestamp
                 },
                 ...prevSse
@@ -400,14 +318,24 @@ export default function App() {
 
         return next;
       });
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [priceAlerts]);
 
+      // Compound interest accruals ticks
+      setInvestedPools(prevPools => prevPools.map(pool => {
+        if (pool.status !== 'active') return pool;
+        // Accrues microscopic compound ticks
+        const accrualSpeed = performanceMode ? 0.00005 : 0.00015;
+        const accruedInterest = pool.interestAccrued + (pool.amount * (pool.apy / 36500) * accrualSpeed);
+        return { ...pool, interestAccrued: accruedInterest };
+      }));
+
+    }, intervalTicks);
+
+    return () => clearInterval(timer);
+  }, [priceAlerts, performanceMode]);
 
   const triggerFlash = (type: 'success' | 'error', message: string) => {
     setFlash({ type, message });
-    setTimeout(() => setFlash(null), 3500);
+    setTimeout(() => setFlash(null), 3000);
   };
 
   // 1. Double-Entry ledger core actions
@@ -460,69 +388,99 @@ export default function App() {
     }
   };
 
-  // 3. Simulated deposit form submit
-  const handleClaimCredits = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const amt = Number(data.get('amount') || 250);
-    if (amt <= 0 || amt > 5000) {
-      triggerFlash('error', 'Invalid amount. Minimum $10 up to $5,000 permitted per transfer.');
-      return;
+  // 3. Staking Pools Stakemanager
+  const handleStake = (amount: number, token: 'USDT' | 'TON', apy: number, days: number) => {
+    const success = debitLedger(amount, `Locked Staking: locked ${amount} ${token} for ${days} days`);
+    if (success) {
+      const newPool: InvestmentVault = {
+        id: investedPools.length + 1,
+        amount,
+        token,
+        apy,
+        interestAccrued: 0,
+        daysRemaining: days,
+        date: new Date().toISOString().substring(0, 10),
+        status: 'active'
+      };
+      setInvestedPools(prev => [newPool, ...prev]);
     }
-    creditLedger(amt, 'Simulated Deposit - Sandbox Wallet Injection');
-    triggerFlash('success', `Simulated deposit confirmed. Credited \$${amt.toFixed(2)} USD to Ledger.`);
-    e.currentTarget.reset();
   };
 
-  // 4. Admin broadcast publishers
-  const handleAdminPublishNotice = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const title = String(data.get('title') || '');
-    const content = String(data.get('content') || '');
-    const category = String(data.get('category') || 'broadcast') as 'broadcast' | 'alert' | 'signal';
+  const handleClaimInterest = (poolId: number) => {
+    const pool = investedPools.find(p => p.id === poolId);
+    if (!pool || pool.interestAccrued <= 0) return;
 
-    if (!title || !content) {
-      triggerFlash('error', 'Bulletin headings and descriptions are mandatory.');
-      return;
-    }
-
-    const item: Bulletins = {
-      id: bulletins.length + 1,
-      title,
-      content,
-      type: category,
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
-    };
-    setBulletins(prev => [item, ...prev]);
-    triggerFlash('success', 'Global system bulletin published to users cockpit.');
-    e.currentTarget.reset();
+    const gained = Number(pool.interestAccrued.toFixed(6));
+    
+    // update interest accrued back to 0
+    setInvestedPools(prev => prev.map(p => p.id === poolId ? { ...p, interestAccrued: 0 } : p));
+    
+    // Credit main wallet equivalent
+    const conversion = pool.token === 'TON' ? gained * 7.50 : gained;
+    creditLedger(conversion, `Claimed yield accrued from ${pool.amount} ${pool.token} Staking Pool`);
+    triggerFlash('success', `Claimed +${gained} ${pool.token}! Account credited +$${conversion.toFixed(2)} USDT.`);
   };
 
-  // 5. Admin launch custom campaign
-  const handleAdminCreateAd = (e: React.FormEvent<HTMLFormElement>) => {
+  // 4. Simulated deposit funding
+  const handleClaimCredits = (amount: number) => {
+    creditLedger(amount, 'Paystack checkout fund settlement');
+    
+    // Push simulated Notification
+    setSseEventsLog(prev => [
+      {
+        id: prev.length + 1,
+        event: 'SSE_PAYMENT_WEBHOOK',
+        title: 'Paystack Hook Cleared',
+        message: `Processed Deposit of $${amount.toFixed(2)} automatically via secure webhooks.`,
+        time: new Date().toLocaleTimeString()
+      },
+      ...prev
+    ]);
+  };
+
+  // 5. Place Simulated Position trade
+  const handlePlaceTrade = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    const heading = String(data.get('heading') || '');
-    const placementSlot = String(data.get('slot') || 'in_feed') as 'banner' | 'in_feed' | 'market';
-    const graphic = String(data.get('url') || '');
+    const side = String(data.get('trade_side') || 'BUY') as 'BUY' | 'SELL';
+    const margin = Number(data.get('trade_margin') || 50);
+    const lev = Number(data.get('trade_lev') || 20);
 
-    if (!heading || !graphic) {
-      triggerFlash('error', 'Ensure banner headlines and illustrative graphic files are filled.');
+    if (margin <= 0 || margin > user.balance) {
+      triggerFlash('error', 'Trade margin size exceeds ledger assets!');
       return;
     }
 
-    const ad: AdCampaigns = {
-      id: campaigns.length + 1,
-      placement: placementSlot,
-      title: heading,
-      imageUrl: graphic,
-      linkUrl: '#',
-      active: true
-    };
-    setCampaigns(prev => [ad, ...prev]);
-    triggerFlash('success', `Ad campaign '${heading}' deployed securely.`);
-    e.currentTarget.reset();
+    const price = tickerPrices[selectedSymbol]?.price || 68000;
+    const contractSize = Number(((margin * lev) / price).toFixed(4));
+
+    const success = debitLedger(margin, `Open ${side} Margin position on ${selectedSymbol} index`);
+    if (success) {
+      const newPos = {
+        id: Date.now(),
+        symbol: selectedSymbol,
+        type: side === 'BUY' ? 'LONG' : 'SHORT',
+        size: contractSize,
+        entryPrice: price,
+        lev: lev,
+        pnl: 0
+      };
+      setOpenPositions(prev => [newPos, ...prev]);
+      triggerFlash('success', `Placed order! Opened ${lev}x ${side === 'BUY' ? 'LONG' : 'SHORT'} position.`);
+    }
+  };
+
+  const handleClosePosition = (posId: number) => {
+    const pos = openPositions.find(p => p.id === posId);
+    if (!pos) return;
+
+    setOpenPositions(prev => prev.filter(p => p.id !== posId));
+    const profit = pos.pnl;
+    
+    // return principal margin + PnL
+    const settlement = Number((pos.size * pos.entryPrice / pos.lev + profit).toFixed(2));
+    creditLedger(settlement, `Settled ${pos.symbol} position. Closed at profit/loss tally.`);
+    triggerFlash('success', `Closed position! Net Settlement: $${settlement.toFixed(2)} USDT (PnL: $${profit.toFixed(2)})`);
   };
 
   // Copy code helper
@@ -532,14 +490,9 @@ export default function App() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // Interactive Candlesticks Generator for SVG canvas
+  // Candlesticks generator helper
   const getCandlesticks = () => {
-    const basePrices: { [key: string]: number } = {
-      BTCUSDT: 68425,
-      ETHUSDT: 3512,
-      SOLUSDT: 146,
-      ADAUSDT: 0.44
-    };
+    const basePrices = { BTCUSDT: 68425, ETHUSDT: 3512, SOLUSDT: 146, ADAUSDT: 0.44 };
     const center = basePrices[selectedSymbol];
     const ticksCount = 42;
     const items = [];
@@ -554,1354 +507,989 @@ export default function App() {
       const low = Math.min(open, close) - Math.random() * (center * 0.004);
       const vol = Math.floor(Math.random() * 800) + 120;
 
-      // indicators calculations elements
       const ema9 = center + wave * 0.9 + (idxOffset * (center * 0.0004));
       const ema21 = center + wave * 0.75 + (idxOffset * (center * 0.0003));
-      
       rsiVal = Number((50 + Math.sin(i * 0.5) * 22 + (Math.random() - 0.5) * 8).toFixed(1));
 
-      items.push({
-        open,
-        close,
-        high,
-        low,
-        vol,
-        ema9,
-        ema21,
-        rsi: rsiVal
-      });
+      items.push({ open, close, high, low, vol, ema9, ema21, rsi: rsiVal });
     }
     return items;
   };
 
   const candleData = getCandlesticks();
-
-  // Selected PHP Source
   const currentPhpSource = PHP_SOURCES[selectedFileIndex];
 
+  // Search filtered perpetual tickers
+  const getFilteredTickers = () => {
+    const keys = Object.keys(tickerPrices) as string[];
+    return keys.filter(sym => sym.toLowerCase().includes(searchQuery.toLowerCase()));
+  };
+
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-200 flex flex-col md:flex-row antialiased select-none selection:bg-[#00FFA3]/20">
+    <div className="min-h-screen bg-[#07080b] text-zinc-200 flex flex-col antialiased selection:bg-[#00FFA3]/20">
       
-      {/* 1. DEVELOPER WORKBENCH SIDEBAR (DESKTOP MODE WRAPPER) */}
-      <div className="w-full md:w-3/5 p-6 border-b md:border-b-0 md:border-r border-[#1f1f1f] bg-[#0A0A0B] flex flex-col justify-between overflow-y-auto max-h-screen">
-        
-        <div>
-          {/* Logo Brand Header & Language Switcher */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-[#1f1f1f] pb-4">
-            <div className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00FFA3]/20 to-[#7047EB]/20 border border-[#00FFA3]/30 flex items-center justify-center font-black text-[#00FFA3] text-base shadow-lg shadow-[#7047EB]/10 font-display">
-                TN
-              </span>
-              <div>
-                <h1 className="text-sm font-black tracking-tighter text-white uppercase leading-none font-display">
-                  {t('title')}
-                </h1>
-                <p className="text-[10px] text-gray-500 font-mono mt-1">{t('desc')}</p>
-              </div>
-            </div>
+      {/* GLOBAL BANNER NOTIFIERS */}
+      {flash && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl text-xs font-mono font-bold shadow-2xl animate-fade-in border flex items-center gap-2 max-w-sm
+          ${flash.type === 'success' ? 'bg-[#0f1115] border-[#00FFA3]/40 text-[#00FFA3]' : 'bg-[#0f1115] border-[#FF4D4D]/40 text-[#FF4D4D]'}`}>
+          <span className="w-1.5 h-1.5 rounded-full animate-ping bg-current" />
+          {flash.message}
+        </div>
+      )}
 
-            {/* Language Switch Selector widget */}
-            <div className="flex items-center gap-2 self-start sm:self-auto bg-[#151619] border border-[#222] p-1 rounded-xl">
-              <Globe size={11} className="text-gray-400 ml-1.5" />
-              {(['en', 'es', 'zh'] as const).map((l) => (
-                <button
-                  key={l}
-                  onClick={() => {
-                    setLang(l);
-                    triggerFlash('success', `Language changed to ${l.toUpperCase()}`);
-                  }}
-                  className={`px-2 py-1 text-[9px] font-mono font-black rounded-lg transition uppercase cursor-pointer
-                    ${lang === l ? 'bg-[#00FFA3]/10 text-[#00FFA3] border border-[#00FFA3]/20' : 'text-gray-500 hover:text-gray-300'}`}
-                >
-                  {l === 'en' ? 'EN' : l === 'es' ? 'ES' : '中文'}
-                </button>
-              ))}
+      {/* TOP HEADER NAVIGATION BAR */}
+      <header className="bg-[#0c0d10]/95 backdrop-blur-md border-b border-[#1f1f1f] h-16 px-4 md:px-6 flex justify-between items-center sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#00FFA3]/20 to-[#7047EB]/20 border border-[#00FFA3]/30 flex items-center justify-center font-black text-[#00FFA3] text-sm shadow-md font-display">
+            TN
+          </span>
+          <div>
+            <h1 className="text-xs md:text-sm font-black tracking-widest text-white uppercase leading-none font-display">
+              {t('title')}
+            </h1>
+            <p className="text-[8.5px] text-gray-500 font-mono mt-0.5 leading-none hidden sm:block">{t('desc')}</p>
+          </div>
+        </div>
+
+        {/* Global persistent controllers actions */}
+        <div className="flex items-center gap-2.5">
+          {/* Portfolio quick balance review */}
+          <div className="bg-[#14151a] border border-[#222] px-2.5 py-1 rounded-xl text-[9px] font-mono flex items-center gap-2.5 hidden sm:flex">
+            <div>
+              <span className="text-gray-500 uppercase tracking-tight block text-[7.5px] font-black">Main Wallet</span>
+              <p className="text-[#00FFA3] font-extrabold leading-none mt-0.5">${user.balance.toFixed(2)} USDT</p>
+            </div>
+            <div className="border-l border-zinc-800 h-5" />
+            <div>
+              <span className="text-gray-500 uppercase tracking-tight block text-[7.5px] font-black">TON Balance</span>
+              <p className="text-[#F0B90B] font-extrabold leading-none mt-0.5">{tonBalance.toFixed(2)} TON</p>
             </div>
           </div>
 
-          <div className="text-xs text-gray-400 leading-relaxed mb-6 bg-[#151619]/40 p-3.5 rounded-2xl border border-[#222] space-y-2">
-            <p>
-              💡 <strong>System Mode:</strong> You are exploring the <strong className="text-[#00FFA3]">TradeNexa PHP SaaS Cockpit</strong> designed for Bybit & Binance-style microsecond-latency simulation.
-            </p>
-            <div className="flex gap-2 pt-1">
-              <button 
-                onClick={() => {
-                  setShowOnboarding(true);
-                  setOnboardingStep(1);
-                  triggerFlash('success', 'Onboarding guide restarted!');
-                }}
-                className="bg-[#00FFA3]/10 hover:bg-[#00FFA3]/25 border border-[#00FFA3]/25 px-2.5 py-1 rounded-lg text-[9px] text-[#00FFA3] font-bold transition font-mono uppercase cursor-pointer"
-              >
-                🚀 Reset Guided Tour
-              </button>
-              <button 
-                onClick={() => {
-                  setShowWalletModal(true);
-                }}
-                className="bg-[#7047EB]/15 hover:bg-[#7047EB]/30 border border-[#7047EB]/25 px-2.5 py-1 rounded-lg text-[9px] text-[#9167FF] font-bold transition font-mono uppercase cursor-pointer flex items-center gap-1"
-              >
-                <Wallet size={9} /> Connect Web3 Webhook
-              </button>
-            </div>
-          </div>
-
-          {/* Clean SSE live stream log feed inside workbench */}
-          <div className="mb-6 bg-[#151619]/70 border border-[#222] rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3 border-b border-[#222] pb-2">
-              <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-gray-400 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#00FFA3] animate-pulse"></span>
-                Server-Sent Events Gateway (app/api/sse_notifications.php)
-              </span>
+          {/* Persistent Language Switch Selector widget */}
+          <div className="flex items-center bg-[#14151a] border border-[#222] p-1 rounded-xl gap-1">
+            <Globe size={11} className="text-gray-500 ml-1" />
+            {(['en', 'es', 'zh'] as const).map((l) => (
               <button
+                key={l}
                 onClick={() => {
-                  const items = [
-                    { id: Date.now(), event: 'SSE_RISK_INSIGHT', title: 'Bybit Premium Pulse', message: 'Liquidity index spike on ADAUSDT linear contracts detected.', time: new Date().toLocaleTimeString() },
-                    { id: Date.now() + 1, event: 'SSE_ADMIN_ACTION', title: 'Ad Campaign Deployed', message: 'Binance Cashback Banner modified in global view.', time: new Date().toLocaleTimeString() }
-                  ];
-                  setSseEventsLog(prev => [items[0], ...prev]);
-                  triggerFlash('success', 'Pushed live SSE event data from PHP backend!');
+                  setLang(l);
+                  triggerFlash('success', `Language changed to ${l.toUpperCase()}`);
                 }}
-                className="text-[9px] font-black text-[#00FFA3] hover:underline cursor-pointer uppercase font-mono"
+                className={`px-1.5 py-0.5 text-[8px] font-mono font-black rounded-lg uppercase cursor-pointer transition
+                  ${lang === l ? 'bg-[#00FFA3]/15 text-[#00FFA3] border border-[#00FFA3]/25' : 'text-gray-500 hover:text-gray-300'}`}
               >
-                + Push Demo SSE
-              </button>
-            </div>
-            <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1">
-              {sseEventsLog.map((log) => (
-                <div key={log.id} className="text-[10px] font-mono bg-[#0A0A0B] border border-[#222] rounded-xl p-2 flex justify-between items-start gap-3">
-                  <div>
-                    <span className="text-[8px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold tracking-tight uppercase">
-                      {log.event}
-                    </span>
-                    <h5 className="font-bold text-gray-200 mt-1">{log.title}</h5>
-                    <p className="text-gray-500 text-[9px] mt-0.5">{log.message}</p>
-                  </div>
-                  <span className="text-gray-600 text-[8.5px] whitespace-nowrap">{log.time}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Credentials Info */}
-          <div className="grid grid-cols-2 gap-3.5 mb-6 text-xs font-mono">
-            <div className="bg-[#151619] p-3.5 rounded-2xl border border-[#222]">
-              <span className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Admin Login Username</span>
-              <p className="font-mono text-xs font-bold text-gray-300 mt-1">admin@saas.com</p>
-            </div>
-            <div className="bg-[#151619] p-3.5 rounded-2xl border border-[#222]">
-              <span className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Admin Code</span>
-              <p className="font-mono text-xs font-bold text-[#00FFA3] mt-1">admin123</p>
-            </div>
-          </div>
-
-          {/* File Explorer tab line selector */}
-          <h3 className="text-[11px] font-bold text-[#00FFA3] uppercase tracking-widest mb-3 flex items-center gap-2 font-mono">
-            <FileCode size={12} className="text-[#00FFA3]" />
-            PHP Production files examiner (mysqli compatible)
-          </h3>
-
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {PHP_SOURCES.map((src, idx) => (
-              <button
-                key={src.path}
-                onClick={() => setSelectedFileIndex(idx)}
-                className={`text-left p-3 rounded-xl border text-[11px] font-mono transition cursor-pointer select-none
-                  ${selectedFileIndex === idx
-                    ? 'bg-[#00FFA3]/10 border-[#00FFA3]/40 text-[#00FFA3]' 
-                    : 'bg-[#151619] border-[#222] hover:border-[#2A2A2A] text-gray-400 hover:text-gray-200'}`}
-              >
-                <p className="font-bold truncate">{src.path}</p>
-                <span className="text-[9px] text-gray-500 block mt-1 truncate">{src.title}</span>
+                {l}
               </button>
             ))}
           </div>
 
-          <div className="bg-[#151619] border border-[#222] rounded-3xl p-5 relative overflow-hidden mb-6">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-mono bg-[#0A0A0B] border border-[#222] text-[#00FFA3] px-2.5 py-1 rounded-lg">
-                📁 {currentPhpSource.path}
-              </span>
-              <button
-                onClick={() => handleCopyCode(currentPhpSource.code)}
-                className="text-[10px] text-[#00FFA3] font-bold hover:underline select-none cursor-pointer"
-              >
-                {isCopied ? 'Copied code!' : 'Copy Code'}
-              </button>
-            </div>
-            
-            <p className="text-xs text-gray-400 mb-3 leading-relaxed font-sans">
-              💡 <span className="font-bold text-gray-300">Feature Description</span>: {currentPhpSource.description}
-            </p>
+          {/* Workspace split controller Layout button */}
+          <button
+            onClick={() => {
+              setSplitView(!splitView);
+              triggerFlash('success', !splitView ? 'Developer Split Cockpit Layout activated' : 'Full-Screen Professional Platform activated');
+            }}
+            className="flex items-center gap-1 bg-[#14151a] hover:bg-zinc-800 border border-[#222] px-2.5 py-1 text-[9px] font-mono font-black rounded-xl transition cursor-pointer select-none text-gray-300 hover:text-white"
+          >
+            <Laptop size={11} className="text-[#00FFA3]" />
+            <span className="hidden md:inline">{splitView ? "Widescreen Mode" : "Developer Split"}</span>
+          </button>
 
-            <pre className="text-[10px] font-mono leading-relaxed text-gray-300 p-4 bg-[#0A0A0B] rounded-2xl overflow-x-auto border border-[#222] max-h-72 custom-scrollbar">
-              {currentPhpSource.code}
-            </pre>
+          {/* Notification log alerts bell dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="w-8 h-8 rounded-xl bg-[#14151a] border border-[#222] flex items-center justify-center text-gray-400 hover:text-white transition cursor-pointer relative"
+            >
+              <Bell size={13} />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-[#FF4D4D] rounded-full" />
+            </button>
+            {showNotifications && (
+              <div className="absolute right-0 mt-2.5 w-64 bg-[#0c0d10] border border-[#222] rounded-2xl shadow-2xl p-3 z-50 font-mono text-[9px] text-zinc-400">
+                <div className="border-b border-[#222] pb-2 mb-2 flex justify-between items-center text-white font-extrabold text-[10px]">
+                  <span>NOTIFICATIONS CENTRE</span>
+                  <X size={10} className="cursor-pointer" onClick={() => setShowNotifications(false)} />
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto no-scrollbar">
+                  {sseEventsLog.slice(0, 5).map(e => (
+                    <div key={e.id} className="border-b border-[#1c1d24]/40 pb-2">
+                      <p className="text-[#00FFA3] font-bold text-[8.5px] uppercase">{e.event}</p>
+                      <p className="text-gray-200 font-bold mt-0.5">{e.title}</p>
+                      <p className="text-[8.2px] text-gray-500 leading-snug">{e.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      </header>
 
-        {/* Quick Footer Checklist */}
-        <div className="border-t border-[#1f1f1f] pt-5 text-[10px] text-gray-500 font-mono space-y-1">
-          <p>⚖ TradeNexa.com - Strict PHP 7.4+ MySQLi SaaS Framework</p>
-          <p>⚡ Tested compatible with cPanel shared hosting plans</p>
-        </div>
-      </div>
-
-      {/* 2. THE FLOATING SMARTPHONE VISUALIZER VIEW */}
-      <div className="flex-1 flex justify-center items-center p-4 md:p-8 bg-[#050505]">
+      {/* DUAL WORKSPACE LAYOUT WRAPPER */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden max-h-[calc(100vh-64px)]">
         
-        {/* Smartphone Shell Frame */}
-        <div className="w-full max-w-[395px] h-[820px] bg-[#0A0A0B] border-[12px] border-[#1f1f1f] rounded-[48px] shadow-2xl relative flex flex-col overflow-hidden">
+        {/* SIDE BAR TRADING MENU PANEL */}
+        <aside className="w-full lg:w-48 bg-[#0c0d10] border-b lg:border-b-0 lg:border-r border-[#1f1f1f] flex lg:flex-col justify-between p-2 z-30 select-none overflow-x-auto no-scrollbar">
+          <div className="flex lg:flex-col w-full gap-1">
+            {[
+              { id: 'dashboard' as const, label: t('dashboard'), icon: <LayoutGrid size={14} /> },
+              { id: 'markets' as const, label: t('markets'), icon: <TrendingUp size={14} /> },
+              { id: 'trade' as const, label: t('trade'), icon: <Activity size={14} /> },
+              { id: 'wallet' as const, label: t('wallet'), icon: <Wallet size={14} /> },
+              { id: 'history' as const, label: t('history'), icon: <Coins size={14} /> },
+              { id: 'settings' as const, label: t('admin'), icon: <Shield size={14} /> }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setLedgerPage(1);
+                }}
+                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[10px] uppercase font-black transition cursor-pointer select-none text-left whitespace-nowrap lg:w-full
+                  ${activeTab === tab.id ? 'text-black bg-[#00FFA3] font-black shadow-md shadow-[#00FFA3]/10' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden lg:block p-3.5 bg-[#14151a]/40 border border-[#222]/60 rounded-xl">
+            <span className="text-[7.5px] text-gray-500 font-mono block uppercase">Auth Web3 Session</span>
+            {connectedWallet ? (
+              <p className="text-[#00FFA3] text-[9px] font-bold mt-1 max-w-[120px] truncate">{connectedWallet}</p>
+            ) : (
+              <p className="text-gray-600 text-[8.5px] mt-1 font-mono">No Wallet Connected</p>
+            )}
+          </div>
+        </aside>
+
+        {/* PRIMARY COCKPIT PANELS MODULES */}
+        <main className={`flex-1 overflow-y-auto p-4 md:p-6 space-y-6 ${splitView ? 'lg:max-w-[55%]' : ''}`}>
           
-          {/* Internal Notch Element */}
-          <div className="absolute top-0 inset-x-0 h-6 flex justify-center z-50">
-            <div className="w-32 h-4 bg-[#1f1f1f] rounded-b-2xl flex justify-around items-center px-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0A0A0B]"></span>
-              <span className="w-8 h-1 bg-[#0A0A0B] rounded"></span>
-            </div>
-          </div>
-
-          {/* Phone Screen Status Line */}
-          <div className="pt-7 px-6 h-12 flex justify-between items-center text-[10px] text-gray-500 bg-[#0A0A0B] border-b border-[#1f1f1f] select-none z-25">
-            <span className="font-bold text-gray-400">9:41 AM</span>
-            <div className="flex gap-1.5 font-bold text-gray-400">
-              <span>📶</span>
-              <span>🔋</span>
-            </div>
-          </div>
-
-          {/* FLASH NOTIFICATION DISPLAY */}
-          {flash && (
-            <div className={`absolute top-14 inset-x-4 z-40 p-3 rounded-2xl text-[10px] font-bold shadow-lg animate-bounce
-              ${flash.type === 'success' ? 'bg-[#0A0A0B] border border-[#00FFA3]/40 text-[#00FFA3]' : 'bg-[#0A0A0B] border border-[#FF4D4D]/40 text-[#FF4D4D]'}`}>
-              {flash.message}
+          {/* System maintenance warning banner alert */}
+          {maintenanceAlertActive && maintenanceAlertMsg && (
+            <div className="bg-amber-500/5 border border-amber-500/25 rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden my-1 animate-fade-in">
+              <span className="text-amber-400 text-sm mt-0.5">⚠️</span>
+              <div className="flex-1">
+                <p className="font-mono font-extrabold uppercase text-[8px] tracking-wider text-amber-500">System maintenance bulletin warning</p>
+                <p className="text-gray-300 text-[9.5px] mt-1 leading-relaxed capitalize">{maintenanceAlertMsg}</p>
+              </div>
             </div>
           )}
 
-          {/* PHONE BODY SCROLL CONTAINER */}
-          <div className="flex-1 overflow-y-auto no-scrollbar bg-[#0A0A0B] p-4.5 pb-24 text-gray-200">
-            
-            {/* System-wide maintenance warning alerts banner */}
-            {maintenanceAlertActive && maintenanceAlertMsg && (
-              <div className="mb-4 bg-[#F0B90B]/10 border border-[#F0B90B]/25 rounded-2xl p-3 text-[10.5px] leading-relaxed text-[#F0B90B] font-mono flex items-start gap-2 relative overflow-hidden shadow-md">
-                <span className="text-[#F0B90B] font-bold mt-0.5">⚠️</span>
-                <div className="flex-1">
-                  <p className="font-extrabold uppercase text-[8px] tracking-wider text-yellow-400">System maintenance bulletin</p>
-                  <p className="text-gray-300 mt-0.5">{maintenanceAlertMsg}</p>
-                </div>
-              </div>
-            )}
-            
-            {/* Tab: MARKETS (Flagship Market Ticker) */}
-            {activeTab === 'markets' && (
-              <div>
-                {/* Header Profile display */}
-                <div className="flex justify-between items-center mb-5 mt-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#7047EB] to-[#9167FF] flex items-center justify-center font-black text-white text-xs select-none">
-                      TN
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black tracking-tight text-white uppercase">TRADENEXA<span className="text-[#00FFA3] font-bold">.AI</span></h4>
-                      <p className="text-[9px] text-gray-500 font-mono uppercase tracking-widest leading-none mt-0.5">Bybit Linear Market feed</p>
-                    </div>
+          {/* TAB 1: PORTFOLIO DASHBOARD PAGE */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-gradient-to-br from-[#14151a] to-[#0c0d10] border border-[#222] rounded-2xl p-5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#00FFA3]/5 rounded-full blur-3xl pointer-events-none" />
+                <span className="text-[8px] tracking-widest font-mono text-[#00FFA3] font-extrabold uppercase block mb-1">
+                  MEMBER OVERVIEW COCKPIT
+                </span>
+                <h2 className="text-lg font-black text-white">{user.email}</h2>
+                <div className="mt-4 grid grid-cols-2 gap-4 pb-3 border-b border-zinc-800/65 text-xs">
+                  <div>
+                    <span className="text-[8px] text-gray-500 uppercase font-bold tracking-tight block">LEDGER SECURED USDT</span>
+                    <h3 className="font-mono text-base font-black text-[#00FFA3] mt-0.5">${user.balance.toFixed(2)}</h3>
                   </div>
-                  <button onClick={() => { setActiveTab('profile'); }} className="w-6 h-6 rounded-full bg-[#151619] border border-[#222] flex items-center justify-center text-xs text-[#00FFA3] select-none cursor-pointer">
-                    👤
+                  <div>
+                    <span className="text-[8px] text-gray-500 uppercase font-bold tracking-tight block">COLD STORAGE TON</span>
+                    <h3 className="font-mono text-base font-black text-[#F0B90B] mt-0.5">{tonBalance.toFixed(2)} TON</h3>
+                  </div>
+                </div>
+
+                <div className="pt-3.5 flex flex-wrap items-center justify-between gap-3 text-[9px] font-mono leading-none">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00FFA3] animate-ping" />
+                    <span className="text-gray-400 uppercase">License Tier Status: <strong className="text-[#00FFA3]">{user.plan} Access</strong></span>
+                  </div>
+                  <button onClick={() => setActiveTab('settings')} className="text-[#00FFA3] font-bold uppercase hover:underline cursor-pointer">
+                    Upgrade License Plan ➜
                   </button>
                 </div>
-
-                {/* Display Ad Slot depending on placement (for Free users) */}
-                {user.plan === 'free' && campaigns.find(c => c.placement === 'market') && (
-                  <div className="mb-4 bg-gradient-to-r from-[#7047EB] to-[#9167FF] rounded-2xl p-4 relative overflow-hidden shadow-sm">
-                    <div className="absolute -right-4 -bottom-4 opacity-20">
-                      <svg width="100" height="100" viewBox="0 0 24 24" fill="white"><path d="M13 10V3L4 14H11V21L20 10H13Z"/></svg>
-                    </div>
-                    <div className="relative z-10">
-                      <span className="text-[8px] bg-white/20 text-white font-bold px-2 py-0.5 rounded uppercase tracking-wider">PREMIUM SPONSORED</span>
-                      <h3 className="text-xs font-bold text-white mt-1.5">{campaigns.find(c => c.placement === 'market')?.title}</h3>
-                      <button onClick={() => setActiveTab('profile')} className="mt-2.5 bg-white text-[#7047EB] text-[9px] font-black px-3 py-1 rounded-full uppercase hover:bg-white/95 transition select-none">
-                        Upgrade Pro
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Hot system bulletins notices */}
-                <div className="mb-4 bg-[#151619] border border-[#222] rounded-2xl p-3.5 space-y-2">
-                  <span className="text-[9px] font-bold text-[#00FFA3] uppercase tracking-widest font-mono">Bulletins Channel</span>
-                  <div className="space-y-1.5 pt-1.5 border-t border-[#222]">
-                    {bulletins.map(b => (
-                      <div key={b.id} className="text-[10px]">
-                        <h5 className="font-bold text-gray-200 leading-snug">📣 {b.title}</h5>
-                        <p className="text-[9px] text-gray-500 leading-relaxed truncate mt-0.5">{b.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Custom price alerts dynamic setter panel */}
-                <div className="mb-4 bg-[#151619] border border-[#222] rounded-3xl p-4.5 space-y-3">
-                  <span className="text-[9px] font-bold text-[#F0B90B] uppercase tracking-widest font-mono flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-[#F0B90B] rounded-full animate-ping"></span>
-                    Set Real-Time Bybit Price Alarm
-                  </span>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formdata = new FormData(e.currentTarget);
-                    const sym = String(formdata.get('alert_sym') || 'BTCUSDT');
-                    const target = Number(formdata.get('alert_price') || 0);
-                    const direction = String(formdata.get('alert_direction') || 'above') as 'above' | 'below';
-                    
-                    if (!target || target <= 0) {
-                      triggerFlash('error', 'Select valid trigger target index.');
-                      return;
-                    }
-                    const newAlert = {
-                      id: Date.now(),
-                      symbol: sym,
-                      targetPrice: target,
-                      direction,
-                      active: true
-                    };
-                    setPriceAlerts(prev => [newAlert, ...prev]);
-                    triggerFlash('success', `Alert armed! Trigger when ${sym} goes ${direction} $${target}`);
-                    e.currentTarget.reset();
-                  }} className="space-y-2 text-xs text-gray-300 font-mono">
-                    <div className="grid grid-cols-2 gap-2">
-                      <select name="alert_sym" className="bg-[#0A0A0B] border border-[#222] text-white rounded-xl px-2 py-1 focus:outline-none text-[10px] font-bold">
-                        <option value="BTCUSDT">BTCUSDT</option>
-                        <option value="ETHUSDT">ETHUSDT</option>
-                        <option value="SOLUSDT">SOLUSDT</option>
-                        <option value="ADAUSDT">ADAUSDT</option>
-                      </select>
-                      <select name="alert_direction" className="bg-[#0A0A0B] border border-[#222] text-white rounded-xl px-2 py-1 focus:outline-none text-[10px] font-bold">
-                        <option value="above">ABOVE (📈)</option>
-                        <option value="below">BELOW (📉)</option>
-                      </select>
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        name="alert_price"
-                        step="any"
-                        placeholder="Alarm Level (68450)"
-                        className="flex-1 bg-[#0A0A0B] border border-[#222] text-white rounded-xl px-2.5 py-1 focus:outline-none text-[10px]"
-                      />
-                      <button type="submit" className="bg-[#F0B90B] hover:bg-[#F0B90B]/90 text-black font-black px-3 py-1 rounded-xl transition cursor-pointer select-none text-[9px] uppercase font-sans">
-                        Arm Alert
-                      </button>
-                    </div>
-                  </form>
-
-                  {/* Armed notification logs lists */}
-                  {priceAlerts.length > 0 && (
-                    <div className="border-t border-[#222] pt-2 space-y-1 max-h-24 overflow-y-auto no-scrollbar font-mono text-[8px]">
-                      <p className="text-gray-500 uppercase tracking-tight text-[7px] font-bold">Armed Alarms ({priceAlerts.filter(a => a.active).length})</p>
-                      <div className="grid grid-cols-1 gap-1">
-                        {priceAlerts.map(a => (
-                          <div key={a.id} className="flex justify-between items-center bg-[#0a0a0b]/40 border border-[#222] p-1 rounded-lg">
-                            <span className={`${a.active ? 'text-gray-300' : 'text-gray-500 line-through'}`}>
-                              {a.symbol} {a.direction === 'above' ? '≥' : '≤'} ${a.targetPrice}
-                            </span>
-                            <span className={`px-1 py-0.5 rounded text-[6.5px] font-bold ${a.active ? 'bg-amber-950/30 text-amber-500' : 'bg-gray-900 text-gray-500'}`}>
-                              {a.active ? 'Armed' : 'Crossed'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Asset Table Header */}
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2.5 font-mono">Hot Contracts Tickers</h3>
-                
-                <div className="space-y-2.5">
-                  {(Object.keys(tickerPrices) as Array<keyof typeof tickerPrices>).map(sym => {
-                    const tick = tickerPrices[sym];
-                    return (
-                      <div
-                        key={sym}
-                        onClick={() => {
-                          setSelectedSymbol(sym as any);
-                          setActiveTab('charts');
-                        }}
-                        className="bg-[#151619] hover:bg-[#151619]/80 border border-[#222] rounded-2xl p-3 cursor-pointer transition flex justify-between items-center relative overflow-hidden active:scale-[0.98]"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${tick.change >= 0 ? 'bg-[#00FFA3]' : 'bg-[#FF4D4D]'}`}></span>
-                          <div>
-                            <h4 className="font-mono text-xs font-bold text-white">{sym}</h4>
-                            <span className="text-[8px] text-gray-500 font-mono">Bybit Perpetual</span>
-                          </div>
-                        </div>
-
-                        {/* Mid sparkline representation */}
-                        <div className="w-12 h-6 flex gap-0.5 items-end opacity-40">
-                          {Array.from({ length: 6 }).map((_, i) => (
-                            <span
-                              key={i}
-                              style={{ height: `${20 + Math.random() * 80}%` }}
-                              className={`w-1 rounded-sm ${tick.change >= 0 ? 'bg-[#00FFA3]' : 'bg-[#FF4D4D]'}`}
-                            ></span>
-                          ))}
-                        </div>
-
-                        <div className="text-right">
-                          <p className="font-mono text-xs font-bold text-white">${tick.price.toLocaleString()}</p>
-                          <span className={`font-mono text-[9px] font-bold ${tick.change >= 0 ? 'text-[#00FFA3]' : 'text-[#FF4D4D]'}`}>
-                            {tick.change >= 0 ? '+' : ''}{tick.change}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Ad banner in-feed targeting free level */}
-                {user.plan === 'free' && campaigns.find(c => c.placement === 'in_feed') && (
-                  <div className="mt-4 bg-[#151619] border border-[#222] rounded-2xl overflow-hidden shadow-sm">
-                    <img src={campaigns.find(c => c.placement === 'in_feed')?.imageUrl} alt="Ad" className="w-full h-16 object-cover opacity-50" />
-                    <div className="p-2.5 bg-[#151619] text-gray-300 text-[9px] flex justify-between items-center">
-                      <span className="font-bold text-gray-200">🎯 {campaigns.find(c => c.placement === 'in_feed')?.title}</span>
-                      <span className="text-[7.5px] text-[#00FFA3] font-mono uppercase font-black border border-[#00FFA3]/20 px-1.5 py-0.5 rounded bg-[#00FFA3]/5">Ad</span>
-                    </div>
-                  </div>
-                )}
               </div>
-            )}
 
-            {/* Tab: CHARTS (Technical charting stage) */}
-            {activeTab === 'charts' && (
-              <div>
-                <div className="mb-4 bg-[#151619] border border-[#222] rounded-3xl p-3.5 mt-2">
-                  <div className="flex items-center justify-between mb-3">
-                    <select
-                      value={selectedSymbol}
-                      onChange={(e) => setSelectedSymbol(e.target.value as any)}
-                      className="bg-[#0A0A0B] border border-[#222] text-white rounded-xl px-2.5 py-1 text-xs font-extrabold font-mono focus:outline-none"
-                    >
-                      <option value="BTCUSDT">BTC/USDT Linear</option>
-                      <option value="ETHUSDT">ETH/USDT Linear</option>
-                      <option value="SOLUSDT">SOL/USDT Linear</option>
-                      <option value="ADAUSDT">ADA/USDT Linear</option>
-                    </select>
+              {/* Compounding Yield Vault component */}
+              <YieldVault
+                onStake={handleStake}
+                vaults={investedPools}
+                onClaimInterest={handleClaimInterest}
+                triggerFlash={triggerFlash}
+                lang={lang}
+                balance={user.balance}
+                tonBalance={tonBalance}
+              />
 
-                    <span className="text-[8px] font-extrabold tracking-wider font-mono text-[#00FFA3] bg-[#00FFA3]/10 border border-[#00FFA3]/20 px-2 py-0.5 rounded-full uppercase font-display">
-                      {user.plan === 'free' ? 'Basic Mode' : `${user.plan.toUpperCase()} Core`}
-                    </span>
-                  </div>
-
-                  {/* Timeframes select line switcher */}
-                  <div className="flex gap-1 border-t border-[#0A0A0B] pt-3">
-                    {['1m', '5m', '15m', '1h', '1d'].map((tf) => (
-                      <button
-                        key={tf}
-                        onClick={() => handleTimeframeChange(tf as any)}
-                        className={`px-2.5 py-1 text-[10px] font-mono rounded font-bold transition-all duration-200 select-none cursor-pointer
-                          ${timeframe === tf ? 'bg-[#00FFA3] text-black font-black' : 'bg-[#0A0A0B] border border-[#222] text-gray-400 hover:text-gray-200 hover:border-[#333]'}`}
-                      >
-                        {tf}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* SVG CANDLESTICK TERMINAL PLOT */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 mb-4 relative overflow-hidden select-none">
-                  
-                  {/* Floating labels overlay */}
-                  <div className="absolute top-4 left-4 z-10">
-                    <h5 className="text-[10px] font-mono font-black text-gray-300 leading-none">
-                      {selectedSymbol} <span className="text-gray-500">({timeframe})</span>
-                    </h5>
-                    {user.plan !== 'free' && indicatorsEnabled ? (
-                      <div className="flex gap-2.5 mt-1.5 text-[8px] font-mono">
-                        <span className="text-[#00FFA3] font-bold">EMA9: {candleData[candleData.length-1].ema9?.toFixed(1)}</span>
-                        <span className="text-purple-400 font-bold">EMA21: {candleData[candleData.length-1].ema21?.toFixed(1)}</span>
-                      </div>
-                    ) : (
-                      <span className="text-[8px] text-gray-500 block mt-1">Status: basic candle rendering only</span>
-                    )}
-                  </div>
-
-                  {/* Annotation Toolbar Panel */}
-                  <div className="mt-11 mb-3 bg-[#0A0A0B]/60 border border-[#222] rounded-xl p-2.5 flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-[#00FFA3] uppercase tracking-widest font-mono">
-                        ✏️ Technical Drawer tools
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {/* Undo & Clear */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (drawings.length > 0) {
-                              setDrawings(prev => prev.slice(0, -1));
-                              triggerFlash('success', 'Removed last technical annotation.');
-                            }
-                          }}
-                          disabled={drawings.length === 0}
-                          className="px-2 py-0.5 text-[8px] bg-gray-950/60 hover:bg-gray-900 disabled:opacity-40 text-gray-300 font-mono font-bold rounded border border-[#222] cursor-pointer"
-                        >
-                          Undo
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (drawings.length > 0) {
-                              setDrawings([]);
-                              triggerFlash('success', 'Cleared all chart annotations.');
-                            }
-                          }}
-                          disabled={drawings.length === 0}
-                          className="px-2 py-0.5 text-[8px] bg-red-950/20 hover:bg-red-950/45 disabled:opacity-40 text-red-400 font-mono font-bold rounded border border-red-900/40 cursor-pointer"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[10px] items-center">
-                      {/* Tool Selectors */}
-                      <div className="flex bg-[#151619] border border-[#222] p-0.5 rounded-lg">
-                        {(['none', 'line', 'channel'] as const).map(tool => (
-                          <button
-                            key={tool}
-                            type="button"
-                            onClick={() => {
-                              setSelectedTool(tool);
-                              triggerFlash('success', tool === 'none' ? 'Annotations off. Touch and drag chart standard.' : `Active: ${tool === 'line' ? 'Trendline' : 'Trend Channel'}. Drag to align levels.`);
-                            }}
-                            className={`flex-1 py-1 text-[8px] font-mono font-black uppercase rounded transition cursor-pointer text-center
-                              ${selectedTool === tool ? 'bg-[#00FFA3] text-black' : 'text-gray-500 hover:text-gray-300'}`}
-                          >
-                            {tool === 'none' ? 'Cursor' : tool === 'line' ? 'Line' : 'Channel'}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Color dots picker */}
-                      <div className="flex justify-around items-center bg-[#151619] border border-[#222] py-1 px-1.5 rounded-lg">
-                        {['#00FFA3', '#FF4D4D', '#F0B90B', '#7047EB', '#00E5FF'].map(col => (
-                          <button
-                            key={col}
-                            type="button"
-                            onClick={() => setSelectedDrawingColor(col)}
-                            style={{ backgroundColor: col }}
-                            className={`w-3 h-3 rounded-full border transition-transform duration-100 cursor-pointer
-                              ${selectedDrawingColor === col ? 'scale-125 border-white ring-1 ring-[#00FFA3]' : 'border-black/50 hover:scale-110'}`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Channel width adjustment slider */}
-                    {selectedTool === 'channel' && (
-                      <div className="flex items-center gap-2 mt-0.5 bg-[#151619]/60 p-1.5 rounded-lg border border-[#222]/50">
-                        <span className="text-[7.5px] font-mono text-gray-400 uppercase tracking-tight whitespace-nowrap">
-                          Width: <strong className="text-white font-mono font-bold">{Math.abs(channelHeight)}px</strong>
-                        </span>
-                        <input
-                          type="range"
-                          min="10"
-                          max="60"
-                          value={Math.abs(channelHeight)}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setChannelHeight(-val);
-                          }}
-                          className="flex-1 h-1 bg-gray-950 rounded-lg appearance-none cursor-pointer accent-[#00FFA3]"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={`w-full h-44 bg-[#0A0A0B] rounded-2xl relative border border-[#222] overflow-hidden flex items-end transition-all duration-300 ${isChangingTimeframe ? 'opacity-30 scale-[0.98] blur-[0.5px]' : 'opacity-100 scale-100 blur-0'}`}>
-                    
-                    {/* SVG canvas with key for retriggering css animation */}
-                    <svg
-                      key={timeframe}
-                      ref={chartSvgRef}
-                      onMouseDown={handleStartDrawing}
-                      onMouseMove={handleDragDrawing}
-                      onMouseUp={handleEndDrawing}
-                      onMouseLeave={handleEndDrawing}
-                      onTouchStart={handleStartDrawing}
-                      onTouchMove={handleDragDrawing}
-                      onTouchEnd={handleEndDrawing}
-                      className={`absolute inset-0 w-full h-full ${selectedTool !== 'none' ? 'cursor-crosshair touch-none select-none' : 'chart-transition'}`}
-                    >
-                      {/* Gridline guides */}
-                      {[0.25, 0.5, 0.75].map((p, k) => (
-                        <line key={k} x1="0" y1={`${176 * p}`} x2="350" y2={`${176 * p}`} stroke="#151619" strokeDasharray="3,3" />
-                      ))}
-
-                      {/* Render candlestick bodies & wicks */}
-                      {candleData.slice(10, 40).map((d, i) => {
-                        const step = 280 / 30;
-                        const cx = i * step + 15;
-                        const isBull = d.close >= d.open;
-                        const color = isBull ? '#00FFA3' : '#FF4D4D';
-                        
-                        // Price mapping bounds
-                        const loBound = d.rsi * 0.4;
-                        const hiBound = d.rsi * 1.5;
-
-                        return (
-                          <g key={i}>
-                            {/* Wick line */}
-                            <line x1={cx} y1={50 + d.rsi * 0.5} x2={cx} y2={120 + d.rsi * 0.5} stroke={color} strokeWidth="1" />
-                            {/* Body block */}
-                            <rect
-                              x={cx - 3}
-                              y={Math.min(70 + d.rsi * 0.5, 90 + d.rsi * 0.5)}
-                              width={6}
-                              height={Math.max(2, Math.abs(d.close - d.open) * 0.05)}
-                              fill={color}
-                              rx="0.5"
-                            />
-                          </g>
-                        );
-                      })}
-
-                      {/* Render SAVED Drawings */}
-                      {drawings.map((drawing) => {
-                        const h = drawing.channelHeight ?? -24;
-                        const isChannel = drawing.type === 'channel';
-                        return (
-                          <g key={drawing.id}>
-                            {/* Shaded area for channel */}
-                            {isChannel && (
-                              <polygon
-                                points={`${drawing.x1},${drawing.y1} ${drawing.x2},${drawing.y2} ${drawing.x2},${drawing.y2 + h} ${drawing.x1},${drawing.y1 + h}`}
-                                fill={drawing.color}
-                                fillOpacity="0.15"
-                              />
-                            )}
-                            
-                            {/* Primary baseline */}
-                            <line
-                              x1={drawing.x1}
-                              y1={drawing.y1}
-                              x2={drawing.x2}
-                              y2={drawing.y2}
-                              stroke={drawing.color}
-                              strokeWidth="2"
-                              strokeDasharray={isChannel ? '2,2' : 'none'}
-                            />
-
-                            {/* Secondary parallel channel line */}
-                            {isChannel && (
-                              <line
-                                x1={drawing.x1}
-                                y1={drawing.y1 + h}
-                                x2={drawing.x2}
-                                y2={drawing.y2 + h}
-                                stroke={drawing.color}
-                                strokeWidth="2"
-                              />
-                            )}
-
-                            {/* Accent indicator dots for drawings */}
-                            <circle cx={drawing.x1} cy={drawing.y1} r="2.5" fill={drawing.color} />
-                            <circle cx={drawing.x2} cy={drawing.y2} r="2.5" fill={drawing.color} />
-                            {isChannel && (
-                              <>
-                                <circle cx={drawing.x1} cy={drawing.y1 + h} r="2.5" fill={drawing.color} />
-                                <circle cx={drawing.x2} cy={drawing.y2 + h} r="2.5" fill={drawing.color} />
-                              </>
-                            )}
-                          </g>
-                        );
-                      })}
-
-                      {/* Render ACTIVE Drawing (While Dragging) */}
-                      {currentDrawing && (
-                        <g>
-                          {currentDrawing.type === 'channel' && (
-                            <>
-                              {/* Parallel shaded background */}
-                              <polygon
-                                points={`${currentDrawing.x1},${currentDrawing.y1} ${currentDrawing.x2},${currentDrawing.y2} ${currentDrawing.x2},${currentDrawing.y2 + channelHeight} ${currentDrawing.x1},${currentDrawing.y1 + channelHeight}`}
-                                fill={currentDrawing.color}
-                                fillOpacity="0.25"
-                                stroke={currentDrawing.color}
-                                strokeDasharray="1,2"
-                                strokeWidth="0.5"
-                              />
-                              {/* Parallel Line */}
-                              <line
-                                x1={currentDrawing.x1}
-                                y1={currentDrawing.y1 + channelHeight}
-                                x2={currentDrawing.x2}
-                                y2={currentDrawing.y2 + channelHeight}
-                                stroke={currentDrawing.color}
-                                strokeWidth="2"
-                              />
-                            </>
-                          )}
-                          {/* Baseline */}
-                          <line
-                            x1={currentDrawing.x1}
-                            y1={currentDrawing.y1}
-                            x2={currentDrawing.x2}
-                            y2={currentDrawing.y2}
-                            stroke={currentDrawing.color}
-                            strokeWidth="2.5"
-                            strokeDasharray={currentDrawing.type === 'channel' ? '2,2' : 'none'}
-                          />
-                          {/* Highlight handle indicators */}
-                          <circle cx={currentDrawing.x1} cy={currentDrawing.y1} r="3.5" fill="#FFFFFF" stroke={currentDrawing.color} strokeWidth="1.5" />
-                          <circle cx={currentDrawing.x2} cy={currentDrawing.y2} r="3.5" fill="#FFFFFF" stroke={currentDrawing.color} strokeWidth="1.5" />
-                        </g>
-                      )}
-                    </svg>
-                  </div>
-
-                   {/* Indicators Controls Switch for paid levels */}
-                  {user.plan !== 'free' ? (
-                    <div className="mt-3.5 border-t border-[#222] pt-3 flex items-center justify-between">
-                      <span className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold font-mono">Telemetry overlays</span>
-                      <button
-                        onClick={() => setIndicatorsEnabled(!indicatorsEnabled)}
-                        className={`text-[9px] font-bold px-2 py-1 rounded transition select-none cursor-pointer
-                          ${indicatorsEnabled ? 'bg-[#00FFA3]/10 text-[#00FFA3] border border-[#00FFA3]/20' : 'bg-[#0A0A0B] text-gray-500 border border-[#222]'}`}
-                      >
-                        {indicatorsEnabled ? '✓ EMA 9/21 curves enabled' : 'indicators disabled'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-3.5 border-t border-[#222] pt-3 flex items-center justify-between text-[10px]">
-                      <span className="text-gray-500">🚫 Advanced indicators disabled</span>
-                      <button onClick={() => setActiveTab('profile')} className="text-[#00FFA3] font-bold hover:underline select-none cursor-pointer">
-                        Upgrade
-                      </button>
-                    </div>
-                  )}
-
-                </div>
-
-                {/* Oscillators data block */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 text-xs text-gray-300">
-                  <h4 className="font-bold text-white mb-3 uppercase tracking-wider text-[10px]">Technical Alarms Signals</h4>
-                  <div className="space-y-2 text-[11px]">
-                    <div className="flex justify-between items-center p-2.5 rounded-xl bg-[#0A0A0B] border border-[#222]">
-                      <span>EMA9 / EMA21 Dynamic crossover</span>
-                      <span className="font-bold text-[#00FFA3]">📈 BULLISH TRAIL</span>
-                    </div>
-                    <div className="flex justify-between items-center p-2.5 rounded-xl bg-[#0A0A0B] border border-[#222]">
-                      <span>Relative Strength Index (RSI)</span>
-                      <span className="font-mono font-bold text-gray-400">⚖ BALANCED index (52.4)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tab: AI SIGNALS FEED (Expert algorithm signals) */}
-            {activeTab === 'signals' && (
-              <div>
-                <div className="mb-4 bg-[#151619] border border-[#222] rounded-3xl p-4.5 mt-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#00FFA3] animate-pulse"></span>
-                      <h3 className="text-xs font-black uppercase text-white font-mono">{t('signalHeader')}</h3>
-                    </div>
-                    <span className="text-[8px] font-bold bg-[#00FFA3]/1s text-[#00FFA3] border border-[#00FFA3]/20 px-1.5 py-0.5 rounded font-mono">
-                      SSE ACTIVE
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-gray-500 leading-relaxed font-mono">
-                    Linear trend indicators are parsed and evaluated. <strong className="text-gray-300">Click any card</strong> to view professional indicator factor breakdowns, Stop Loss justifications, and confidence ratings details.
+              {/* Refer and earn 7 days free promotion */}
+              <div className="bg-gradient-to-r from-purple-950/20 to-indigo-950/20 border border-purple-900/20 rounded-2xl p-5 relative overflow-hidden flex flex-col md:flex-row items-center gap-4">
+                <Award className="text-[#00FFA3] flex-shrink-0" size={32} />
+                <div>
+                  <h4 className="text-white text-xs font-black uppercase tracking-wider">Advanced Partner Referral Reward</h4>
+                  <p className="text-[9.5px] text-gray-400 mt-1 leading-relaxed">
+                    Extend your strategic Pro license by <strong className="text-[#00FFA3]">7 days completely free</strong> for every referee signup! Share Telegram command variables instantly.
                   </p>
-                  <div className="mt-2.5 bg-[#0A0A0B]/60 border border-[#222]/80 px-2.5 py-1.5 rounded-xl flex justify-between items-center text-[9px] font-mono">
-                    <span className="text-gray-400">System Signal Sensitivity:</span>
-                    <span className={`font-black uppercase px-2 py-0.5 rounded text-[7.5px] tracking-widest border
-                      ${signalSensitivity === 'LOW' 
-                        ? 'bg-blue-950/40 text-blue-400 border-blue-900/40' 
-                        : signalSensitivity === 'HIGH' 
-                          ? 'bg-amber-950/40 text-amber-400 border-amber-900/40' 
-                          : 'bg-emerald-950/40 text-[#00FFA3] border-emerald-900/40'}`}>
-                      ⚡ {signalSensitivity} FILTER
-                    </span>
+                  <div className="mt-3 bg-black/60 border border-purple-900/30 px-3 py-1.5 rounded-xl font-mono text-[9px] text-purple-300 select-all max-w-sm truncate">
+                    https://tradenexa.com/register?ref={user.email}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
 
-                <div className="space-y-4 font-mono">
-                  {[
-                    { sym: 'BTCUSDT', sig: 'BUY' as const, rate: 68420.5, confidence: signalSensitivity === 'LOW' ? 76 : signalSensitivity === 'HIGH' ? 98 : 91, strategy: 'EMA Golden Cross', tp: 70500.0, sl: 67200.0, notes: 'EMA9 is hovering above EMA21 with massive historical support. RSI is oversold. (Filtered under admin parameter settings).', ema9: 68512.4, ema21: 68290.8, rsi: 29.5 },
-                    { sym: 'ETHUSDT', sig: 'SELL' as const, rate: 3512.4, confidence: signalSensitivity === 'LOW' ? 68 : signalSensitivity === 'HIGH' ? 93 : 84, strategy: 'RSI Overbought alarm', tp: 3380.0, sl: 3590.0, notes: 'The 1-hour candle relative strength index crossed the critical 70 bar, highlighting near-term bearish flags. (Filtered under admin parameter settings).', ema9: 3491.2, ema21: 3540.5, rsi: 74.2 },
-                    { sym: 'SOLUSDT', sig: 'BUY' as const, rate: 146.4, confidence: signalSensitivity === 'LOW' ? 62 : signalSensitivity === 'HIGH' ? 89 : 78, strategy: 'Volume EMA validation', tp: 155.0, sl: 141.2, notes: 'Order book liquidity blocks show heavy support. Relative volatility suggests rapid TP target attainment. (Filtered under admin parameter settings).', ema9: 147.2, ema21: 144.1, rsi: 44.0 }
-                  ].map((s) => (
+          {/* TAB 2: MARKETS TICKERS PAGE */}
+          {activeTab === 'markets' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex items-center gap-2 bg-[#14151a] border border-[#222] px-3.5 h-11 rounded-xl">
+                <Search size={14} className="text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search perpetuals markets... (e.g. BTC, ETH)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-transparent border-none focus:outline-none text-xs text-white placeholder-gray-500 font-mono uppercase"
+                />
+              </div>
+
+              {/* Tickers list */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {getFilteredTickers().map(sym => {
+                  const tick = tickerPrices[sym as keyof typeof tickerPrices];
+                  const isUp = tick.change >= 0;
+                  return (
                     <div
-                      key={s.sym}
-                      onClick={() => setSelectedSignalDetail(s as any)}
-                      className="bg-[#151619] hover:bg-[#1C1D22] border border-[#222] rounded-3xl p-4.5 relative overflow-hidden transition cursor-pointer select-none active:scale-[0.99] group"
+                      key={sym}
+                      onClick={() => {
+                        setSelectedSymbol(sym as any);
+                        setActiveTab('trade');
+                      }}
+                      className="bg-[#14151a] hover:bg-[#1c1d24] border border-[#222] rounded-2xl p-4 cursor-pointer transition-all duration-200 flex justify-between items-center relative overflow-hidden"
                     >
-                      {/* Glow backdrop */}
-                      <span className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-15 transition group-hover:opacity-25
-                        ${s.sig === 'BUY' ? 'bg-[#00FFA3]' : 'bg-[#FF4D4D]'}`}></span>
-                      
-                      <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-2 h-2 rounded-full ${isUp ? 'bg-[#00FFA3] animate-pulse' : 'bg-[#FF4D4D]'}`} />
                         <div>
-                          <span className="font-mono text-xs font-extrabold text-white">{s.sym}</span>
-                          <span className="text-[8px] text-gray-500 block">Click for breakdown ➜</span>
+                          <h4 className="font-mono text-xs font-black text-white">{sym}</h4>
+                          <span className="text-[8.5px] text-gray-500 font-mono">Bybit Perpetual</span>
                         </div>
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg border font-mono
-                          ${s.sig === 'BUY' 
-                            ? 'bg-[#00FFA3]/1s text-[#00FFA3] border-[#00FFA3]/20 bg-[#00FFA3]/5' 
-                            : 'bg-[#FF4D4D]/10 text-[#FF4D4D] border-[#FF4D4D]/20 bg-[#FF4D4D]/5'}`}>
-                          {s.sig}
+                      </div>
+
+                      {/* Sparkline graphics simulation */}
+                      <div className="w-14 h-7 flex gap-0.5 items-end opacity-40">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <span
+                            key={i}
+                            style={{ height: `${25 + Math.random() * 70}%` }}
+                            className={`w-1 rounded-sm ${isUp ? 'bg-[#00FFA3]' : 'bg-[#FF4D4D]'}`}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="text-right">
+                        <p className="font-mono text-xs font-extrabold text-white">${tick.price.toLocaleString()}</p>
+                        <span className={`font-mono text-[9px] font-black ${isUp ? 'text-[#00FFA3]' : 'text-[#FF4D4D]'}`}>
+                          {isUp ? '+' : ''}{tick.change}%
                         </span>
                       </div>
-
-                      {/* Gated statistics parameters */}
-                      <div className="grid grid-cols-3 gap-2 bg-[#0A0A0B] p-2.5 rounded-xl border border-[#222]/60 mb-3 text-center font-mono">
-                        <div>
-                          <span className="text-[7.5px] text-gray-500 uppercase font-black">Entry range</span>
-                          <p className="text-[10px] font-bold text-gray-300 mt-0.5">${s.rate}</p>
-                        </div>
-                        <div>
-                          <span className="text-[7.5px] text-gray-500 uppercase font-black">Take Profit</span>
-                          <p className="text-[10px] font-bold text-[#00FFA3] mt-0.5">${s.tp}</p>
-                        </div>
-                        <div>
-                          <span className="text-[7.5px] text-gray-500 uppercase font-black">Stop Loss</span>
-                          <p className="text-[10px] font-bold text-[#FF4D4D] mt-0.5">${s.sl}</p>
-                        </div>
-                      </div>
-
-                      {/* Decouple subscription permissions gating */}
-                      <div className="border-t border-[#222] pt-2.5 space-y-1 text-[10px]">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Confidence ratio:</span>
-                          <span className="font-bold font-mono text-[#00FFA3]">
-                            {user.plan === 'free' ? '🔒 Locked (Pro/VIP)' : `${s.confidence}% Accuracy`}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Method Strategy:</span>
-                          <span className="font-semibold text-gray-400 text-[9.5px]">
-                            {user.plan === 'free' ? '🔒 Locked parameter' : s.strategy}
-                          </span>
-                        </div>
-                      </div>
-
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
 
-            {/* Tab: LEDGER STALKER BOOK (Wallet Statement & claim) */}
-            {activeTab === 'ledger' && (
-              <div>
-                <div className="mb-4 bg-gradient-to-br from-[#151619] to-[#0A0A0B] border border-[#222] rounded-3xl p-4.5 mt-2 shadow-sm relative overflow-hidden">
-                  <span className="text-[8px] tracking-widest font-mono text-[#00FFA3] font-extrabold uppercase">{t('auditBook')}</span>
-                  
-                  <div className="mt-2 grid grid-cols-2 gap-3 pb-2 border-b border-[#222]">
-                    <div>
-                      <span className="text-[8px] text-gray-400 uppercase font-bold tracking-tight">Main USDT Balance</span>
-                      <h3 className="font-mono text-base font-black text-[#00FFA3] mt-0.5">${user.balance.toFixed(2)}</h3>
-                    </div>
-                    <div>
-                      <span className="text-[8px] text-gray-400 uppercase font-bold tracking-tight">Cold TON Balance</span>
-                      <h3 className="font-mono text-base font-black text-[#F0B90B] mt-0.5">{tonBalance.toFixed(2)} ? TON</h3>
-                    </div>
-                  </div>
-
-                  {/* Connected wallet panel check */}
-                  <div className="pt-3 text-[9px] font-mono flex items-center justify-between">
-                    {connectedWallet ? (
-                      <div className="flex items-center gap-1 text-[#00FFA3]">
-                        <span className="w-1.5 h-1.5 bg-[#00FFA3] rounded-full animate-ping"></span>
-                        <span>Wallet connected: {connectedWallet.substring(0,8)}...{connectedWallet.substring(connectedWallet.length - 6)}</span>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setShowWalletModal(true)}
-                        className="bg-[#00FFA3]/10 hover:bg-[#00FFA3]/20 border border-[#00FFA3]/20 rounded-lg px-2 py-1 text-[#00FFA3] text-[8.5px] uppercase font-bold transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <Wallet size={9} /> Connect wallet
-                      </button>
-                    )}
-                    {connectedWallet && (
-                      <button
-                        onClick={() => {
-                          setConnectedWallet(null);
-                          triggerFlash('error', 'Wallet disconnected.');
-                        }}
-                        className="text-gray-500 hover:text-gray-300 transition underline font-sans cursor-pointer"
-                      >
-                        Disconnect
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Instant In-App Convert Swap TON/USDT */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 mb-4 text-xs">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <h4 className="font-bold text-white uppercase tracking-wide text-[10px] flex items-center gap-1 font-mono">
-                      <ArrowRightLeft size={10} className="text-[#00FFA3]" /> Inbuilt Sell & Buy TON/USDT
-                    </h4>
-                    <span className="text-[8px] text-gray-500 font-mono">1 TON ≈ $7.50 USD</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        if (user.balance < 75) {
-                          triggerFlash('error', 'Requires min $75.00 USDT to buy.');
-                          return;
-                        }
-                        debitLedger(75, 'Bought 10 TON via inbuilt converter');
-                        setTonBalance(prev => prev + 10);
-                        triggerFlash('success', 'Exchange complete! Swapped 75 USDT for 10 TON.');
-                      }}
-                      className="bg-[#0A0A0B] hover:bg-[#111] border border-[#222] hover:border-[#00FFA3]/40 rounded-xl p-2 text-center transition cursor-pointer"
-                    >
-                      <span className="text-[8px] uppercase text-gray-500 block font-bold">Buy 10 TON</span>
-                      <span className="text-[#00FFA3] font-mono font-bold text-[10px]">-75 USDT / +10 TON</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (tonBalance < 10) {
-                          triggerFlash('error', 'Insufficient TON balance (Requires min 10 TON).');
-                          return;
-                        }
-                        setTonBalance(prev => prev - 10);
-                        creditLedger(75, 'Inbuilt Convert: Sold 10 TON');
-                        triggerFlash('success', 'Exchange success! Swapped 10 TON for 75 USDT.');
-                      }}
-                      className="bg-[#0A0A0B] hover:bg-[#111] border border-[#222] hover:border-[#FF4D4D]/40 rounded-xl p-2 text-center transition cursor-pointer"
-                    >
-                      <span className="text-[8px] uppercase text-gray-500 block font-bold">Sell 10 TON</span>
-                      <span className="text-[#FF4D4D] font-mono font-bold text-[10px]">-10 TON / +75 USDT</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Claim credits input */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 mb-4 text-xs">
-                  <h4 className="font-bold text-white uppercase tracking-wide mb-3 text-[10px] font-mono">{t('claimHeader')}</h4>
-                  <form onSubmit={handleClaimCredits} className="flex gap-2.5">
-                    <input
-                      type="number"
-                      name="amount"
-                      defaultValue="500"
-                      min="10"
-                      max="5000"
-                      className="flex-1 bg-[#0A0A0B] border border-[#222] focus:border-[#00FFA3] text-xs text-white rounded-xl px-2.5 py-2 font-mono"
-                    />
-                    <button type="submit" className="bg-[#00FFA3] hover:bg-[#00FFA3]/90 text-black font-black py-2 px-3.5 rounded-xl text-xs select-none transition cursor-pointer">
-                      Deposit
-                    </button>
-                  </form>
-                </div>
-
-                {/* Ledger trail histories with Pagination */}
-                <div className="flex justify-between items-center mb-2.5">
-                  <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono">Ledger hashes statement</h4>
-                  <span className="text-[9px] text-gray-500 font-mono">Page {ledgerPage} / {Math.ceil(ledgers.length / ledgerLimit)}</span>
-                </div>
+              {/* Set custom price alarms widget */}
+              <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5 space-y-4">
+                <span className="text-[9px] font-extrabold text-[#F0B90B] uppercase tracking-widest font-mono flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-[#F0B90B] rounded-full animate-ping" />
+                  Define Price Alarm Gateways
+                </span>
+                <p className="text-[9.5px] text-gray-500 leading-relaxed font-sans mt-1">
+                  Armed price alarms instantly push desktop notifications and trigger simulated server-sent data events on target matches.
+                </p>
                 
-                <div className="space-y-2.5">
-                  {ledgers.slice((ledgerPage - 1) * ledgerLimit, ledgerPage * ledgerLimit).map((l) => (
-                    <div key={l.id} className="bg-[#151619] border border-[#222] rounded-2xl p-3 text-[11px] font-mono">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <span className={`text-[8px] uppercase tracking-wider py-0.5 px-1 rounded border font-semibold
-                            ${l.type === 'credit' 
-                              ? 'bg-emerald-950/60 text-emerald-400 border-emerald-900/40' 
-                              : 'bg-rose-950/60 text-rose-400 border-rose-900/40'}`}>
-                            {l.type.toUpperCase()}
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const data = new FormData(e.currentTarget);
+                  const sym = String(data.get('alert_sym') || 'BTCUSDT');
+                  const price = Number(data.get('alert_price') || 0);
+                  const dir = String(data.get('alert_dir') || 'above') as 'above' | 'below';
+
+                  if (price <= 0) {
+                    triggerFlash('error', 'Enter a valid target price threshold.');
+                    return;
+                  }
+
+                  const alert: PriceAlert = {
+                    id: Date.now(),
+                    symbol: sym,
+                    targetPrice: price,
+                    direction: dir,
+                    active: true
+                  };
+                  setPriceAlerts(prev => [alert, ...prev]);
+                  triggerFlash('success', `Armed Alert! Triggered when ${sym} goes ${dir} $${price}`);
+                  e.currentTarget.reset();
+                }} className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs font-mono">
+                  <select name="alert_sym" className="bg-[#0b0c10] border border-[#222] text-white rounded-xl px-2 py-2 text-[10px] focus:outline-none">
+                    <option value="BTCUSDT">BTCUSDT</option>
+                    <option value="ETHUSDT">ETHUSDT</option>
+                    <option value="SOLUSDT">SOLUSDT</option>
+                    <option value="ADAUSDT">ADAUSDT</option>
+                  </select>
+
+                  <select name="alert_dir" className="bg-[#0b0c10] border border-[#222] text-white rounded-xl px-2 py-2 text-[10px] focus:outline-none">
+                    <option value="above">ABOVE (📈)</option>
+                    <option value="below">BELOW (📉)</option>
+                  </select>
+
+                  <input
+                    type="number"
+                    name="alert_price"
+                    step="any"
+                    placeholder="Trigger level (68450)"
+                    className="bg-[#0b0c10] border border-[#222] text-white rounded-xl px-3 py-2 text-[10px] focus:outline-none focus:border-[#00FFA3]"
+                    required
+                  />
+
+                  <button type="submit" className="bg-[#F0B90B] hover:opacity-95 text-black font-black px-4 py-2 rounded-xl text-[9px] uppercase font-sans cursor-pointer select-none">
+                    Arm Alert
+                  </button>
+                </form>
+
+                {/* Armed price alarms lists */}
+                {priceAlerts.length > 0 && (
+                  <div className="border-t border-[#222] pt-3.5 space-y-2 font-mono text-[9px]">
+                    <span className="text-gray-500 uppercase font-black text-[8px] tracking-widest">Currently Armed Alarms ({priceAlerts.filter(p => p.active).length})</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {priceAlerts.map(alert => (
+                        <div key={alert.id} className="flex justify-between items-center bg-[#0b0c10]/40 border border-[#222] p-2.5 rounded-xl">
+                          <span className={alert.active ? 'text-zinc-300 font-extrabold' : 'text-gray-600 line-through'}>
+                            {alert.symbol} {alert.direction === 'above' ? '≥' : '≤'} ${alert.targetPrice}
                           </span>
-                          <h5 className="font-bold text-slate-200 mt-1 rounded leading-snug">{l.reason}</h5>
+                          <span className={`px-2 py-0.5 rounded text-[7.5px] font-black uppercase border
+                            ${alert.active ? 'bg-amber-950/20 text-amber-500 border-amber-900/30' : 'bg-zinc-900/50 text-gray-600 border-zinc-800'}`}>
+                            {alert.active ? 'Armed' : 'Triggered'}
+                          </span>
                         </div>
-                        <span className={`font-black tracking-tighter ${l.type === 'credit' ? 'text-emerald-400' : 'text-slate-300'}`}>
-                          {l.type === 'credit' ? '+' : '–'}${l.amount.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center text-[9px] text-zinc-500 border-t border-slate-950/50 pt-2 font-mono">
-                        <span className="text-gray-500">{l.timestamp}</span>
-                        <span className="text-gray-600 truncate max-w-28 font-semibold">Bal: ${l.balanceAfter.toFixed(2)}</span>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                  
-                  {/* Ledger Pagination Controls */}
-                  <div className="grid grid-cols-2 gap-2 mt-4 pt-2">
-                    <button
-                      disabled={ledgerPage <= 1}
-                      onClick={() => setLedgerPage(prev => Math.max(1, prev - 1))}
-                      className="bg-[#151619] border border-[#222] rounded-xl py-1 px-3 text-[10px] text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition font-mono font-bold"
-                    >
-                      ◀ Previous
-                    </button>
-                    <button
-                      disabled={ledgerPage >= Math.ceil(ledgers.length / ledgerLimit)}
-                      onClick={() => setLedgerPage(prev => prev + 1)}
-                      className="bg-[#151619] border border-[#222] rounded-xl py-1 px-3 text-[10px] text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition font-mono font-bold"
-                    >
-                      Next Page ▶
-                    </button>
                   </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Tab: MEMBERSHIPS & LEVEL GATING */}
-            {activeTab === 'profile' && (
-              <div>
-                <div className="mb-4 bg-[#151619] border border-[#222] rounded-3xl p-4.5 mt-2 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#00FFA3]/10 border border-[#00FFA3]/20 flex items-center justify-center font-bold text-[#00FFA3] text-sm font-display">
-                    {user.email.substring(0,1).toUpperCase()}
-                  </div>
-                  <div className="truncate">
-                    <h4 className="font-black text-white leading-none truncate">{user.email}</h4>
-                    <span className="text-[9px] text-gray-500 mt-1 font-mono">Membership Level: <strong className="text-[#00FFA3] uppercase">{user.plan}</strong></span>
-                  </div>
-                </div>
+          {/* TAB 3: TRADING INTERFACE PAGE */}
+          {activeTab === 'trade' && (
+            <div className="space-y-6 animate-fade-in">
+              <TradingViewChart
+                symbol={selectedSymbol}
+                timeframe={timeframe}
+                onTimeframeChange={handleTimeframeChange}
+                plan={user.plan}
+                indicatorsEnabled={indicatorsEnabled}
+                setIndicatorsEnabled={setIndicatorsEnabled}
+                drawings={drawings}
+                setDrawings={setDrawings}
+                selectedTool={selectedTool}
+                setSelectedTool={setSelectedTool}
+                selectedDrawingColor={selectedDrawingColor}
+                setSelectedDrawingColor={setSelectedDrawingColor}
+                channelHeight={channelHeight}
+                setChannelHeight={setChannelHeight}
+                triggerFlash={triggerFlash}
+                candleData={candleData}
+                isChangingTimeframe={isChangingTimeframe}
+                performanceMode={performanceMode}
+              />
 
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3 font-mono">Buy subscription packages</h3>
-                <div className="space-y-4">
-                  {[
-                    { key: 'pro' as const, name: 'Pro Strategy License', price: proTierPrice, benefits: 'Confidences numbers unlocked + 10s latency indicators.' },
-                    { key: 'vip' as const, name: 'VIP Real-Time Sovereign', price: vipTierPrice, benefits: 'Zero latency metrics + immediate Bybit API feeds & zero Ads.' }
-                  ].map((p) => (
-                    <div key={p.key} className={`border rounded-3xl p-4.5 relative overflow-hidden transition
-                      ${user.plan === p.key ? 'bg-[#151619] border-[#00FFA3]' : 'bg-[#151619]/60 border-[#222]'}`}>
-                      
-                      {user.plan === p.key && (
-                        <span className="absolute top-3.5 right-3.5 text-[8px] font-bold text-[#00FFA3] uppercase bg-[#00FFA3]/10 border border-[#00FFA3]/20 px-2 py-0.5 rounded-full select-none font-mono">Active</span>
-                      )}
-
-                      <h4 className="font-black text-xs text-white leading-none">{p.name}</h4>
-                      <p className="text-[10px] text-gray-500 font-mono mt-1">$ {p.price} / monthly (demo credits)</p>
-                      
-                      <p className="text-[10px] text-gray-400 leading-relaxed mt-3.5 bg-[#0A0A0B] p-2.5 rounded-xl border border-[#222] font-mono">{p.benefits}</p>
-
-                      <div className="mt-4">
-                        {user.plan === p.key ? (
-                          <button disabled className="w-full text-center text-[10px] font-black py-2 rounded-xl bg-[#0A0A0B] text-gray-600 border border-[#222] select-none cursor-not-allowed">
-                            License Active
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleUpgradeSubscription(p.key)}
-                            className="w-full text-center text-[10px] font-black py-2 rounded-xl bg-gradient-to-r from-[#7047EB] to-[#9167FF] hover:opacity-95 text-white transition select-none cursor-pointer uppercase"
-                          >
-                            Buy / Upgrade package
-                          </button>
-                        )}
-                      </div>
-
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Tab: ADMIN STRATEGY CONTROL */}
-            {activeTab === 'admin' && (
-              <div className="space-y-5">
-                
-                {/* Header Information Dashboard Card */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 mt-2 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-[#00FFA3]/5 blur-2xl pointer-events-none"></div>
-                  <span className="text-[8px] uppercase tracking-widest font-mono text-[#00FFA3] font-black flex items-center gap-1.5">
-                    <Shield size={10} className="text-[#00FFA3]" /> Administrative Core Cockpit
-                  </span>
-                  <h4 className="text-sm font-extrabold text-white mt-1">SaaS Global Variables Panel</h4>
-                  <p className="text-[9.5px] text-gray-500 mt-1 leading-relaxed font-mono">
-                    Configure real-time filter gains, adjust subscription billing levels, audit connection gateway nodes, and broadcast system-wide warnings immediately.
-                  </p>
-                </div>
-
-                {/* Section 1: Signals Sensitivity globally switch */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 text-xs font-mono">
-                  <div className="flex items-center justify-between mb-3 border-b border-[#0A0A0B] pb-2">
-                    <h5 className="font-bold text-white uppercase tracking-wider text-[10px] flex items-center gap-1">
-                      <Sliders size={10} className="text-[#00FFA3]" /> Core Signal Sensitivity
-                    </h5>
-                    <span className="text-[7.5px] text-gray-500 font-mono">Active: {signalSensitivity}</span>
-                  </div>
-                  
-                  <p className="text-[9.5px] text-gray-400 mb-3.5 leading-relaxed">
-                    Adjusting the algorithm sensitivity dynamically calibrates confidence metrics and accuracy margins shown to subscribers in real-time.
-                  </p>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['LOW', 'MEDIUM', 'HIGH'] as const).map((lvl) => (
-                      <button
-                        key={lvl}
-                        onClick={() => {
-                          setSignalSensitivity(lvl);
-                          triggerFlash('success', `Global filter sensitivity switched to ${lvl} mode!`);
-                        }}
-                        className={`py-2 px-1 rounded-xl text-[9px] font-bold border transition cursor-pointer text-center uppercase
-                          ${signalSensitivity === lvl 
-                            ? 'bg-[#00FFA3]/10 text-[#00FFA3] border-[#00FFA3]/30 shadow-md shadow-[#00FFA3]/5' 
-                            : 'bg-[#0A0A0B] text-gray-400 border-[#222] hover:text-gray-200'}`}
-                      >
-                        {lvl === 'LOW' ? '📉 LOW' : lvl === 'HIGH' ? '📈 HIGH (MAX)' : '⚖ MEDIUM'}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 bg-[#0A0A0B] p-2.5 rounded-xl border border-[#222]/60 text-[8.5px] text-gray-500 space-y-1">
-                    <p className="font-semibold text-gray-400">⚡ Sensitivity Weighting Breakdown:</p>
-                    {signalSensitivity === 'LOW' && <p>• Conservative Mode. Clamps signal confidence estimates (e.g. BTCUSDT ~76%) to insulate retail traders from high-volatility false breakouts.</p>}
-                    {signalSensitivity === 'MEDIUM' && <p>• Balanced Mode. Standard algorithmic weighting optimized for trend continuity (EMA 9/21 cross-verification parameters).</p>}
-                    {signalSensitivity === 'HIGH' && <p>• Aggressive Mode. Expands indicator tolerances to trigger micro-trend spikes (BTCUSDT confidences scaled up to 98% accuracy thresholds!).</p>}
-                  </div>
-                </div>
-
-                {/* Section 2: Bybit Connection Gateway API */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 text-xs font-mono">
-                  <div className="flex items-center justify-between mb-3 border-b border-[#0A0A0B] pb-2">
-                    <h5 className="font-bold text-white uppercase tracking-wider text-[10px] flex items-center gap-1">
-                      <RefreshCw size={10} className="text-[#00FFA3]" /> Bybit API Connection Endpoint
-                    </h5>
-                    
-                    <div className="flex items-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${bybitApiConnectStatus === 'CONNECTED' ? 'bg-[#00FFA3] animate-pulse' : bybitApiConnectStatus === 'TESTING' ? 'bg-yellow-400 animate-ping' : 'bg-red-500'}`}></span>
-                      <span className="text-[7.5px] text-gray-500 uppercase tracking-tight font-black">{bybitApiConnectStatus}</span>
-                    </div>
-                  </div>
-
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    setBybitApiConnectStatus('TESTING');
-                    triggerFlash('success', 'Pinging selected REST gateway network node...');
-                    setTimeout(() => {
-                      setBybitApiConnectStatus('CONNECTED');
-                      triggerFlash('success', 'REST Integration verified successfully! Latency: 16ms.');
-                    }, 800);
-                  }} className="space-y-3">
+              {/* Order Execution Form with orderbook depth summary */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs font-mono">
+                {/* 1. Buy/Sell Execution Form */}
+                <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5">
+                  <h4 className="text-white text-[10px] font-black uppercase tracking-wider mb-3.5 flex items-center gap-1.5 border-b border-[#222] pb-2">
+                    <Sliders size={12} className="text-[#00FFA3]" /> Place Contract Order
+                  </h4>
+                  <form onSubmit={handlePlaceTrade} className="space-y-3.5">
                     <div>
-                      <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Endpoints REST Gateway URL</label>
-                      <input
-                        type="text"
-                        value={bybitApiEndpoint}
-                        onChange={(e) => setBybitApiEndpoint(e.target.value)}
-                        className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[10px] uppercase tracking-wide focus:border-[#00FFA3] focus:outline-none"
-                      />
+                      <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Contract Action</label>
+                      <select name="trade_side" className="w-full bg-[#0b0c10] border border-[#222] text-white rounded-xl px-2.5 py-1.5 font-bold focus:outline-none">
+                        <option value="BUY">BUY / LONG (📈)</option>
+                        <option value="SELL">SELL / SHORT (📉)</option>
+                      </select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">API Key Identifier</label>
-                        <input
-                          type="text"
-                          value={bybitApiKey}
-                          onChange={(e) => setBybitApiKey(e.target.value)}
-                          className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[10px] focus:border-[#00FFA3] focus:outline-none font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">API Private Secret</label>
-                        <input
-                          type="password"
-                          value={bybitApiSecret}
-                          onChange={(e) => setBybitApiSecret(e.target.value)}
-                          className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[10px] focus:border-[#00FFA3] focus:outline-none font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setBybitApiConnectStatus('DISCONNECTED');
-                          triggerFlash('error', 'Bybit API gateway connection credentials cleared/offline!');
-                        }}
-                        className="bg-rose-950/40 hover:bg-rose-950/60 border border-rose-900/40 hover:border-rose-900/60 text-rose-400 py-2 px-3 rounded-xl text-[9px] font-bold uppercase transition cursor-pointer"
-                      >
-                        Disconnect Gateway
-                      </button>
-                      <button
-                        type="submit"
-                        className="flex-1 bg-[#00FFA3] hover:opacity-95 text-black py-2 rounded-xl text-[9.5px] font-black transition select-none cursor-pointer uppercase font-sans"
-                      >
-                        Save & Test Connection Node
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* Section 3: Subscription plans pricing engine adjustment */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 text-xs font-mono">
-                  <div className="flex items-center justify-between mb-3 border-b border-[#0A0A0B] pb-2">
-                    <h5 className="font-bold text-white uppercase tracking-wider text-[10px] flex items-center gap-1">
-                      <Coins size={10} className="text-[#00FFA3]" /> Subscription Cost Engine
-                    </h5>
-                    <span className="text-[7.5px] text-gray-500 font-mono">Live update</span>
-                  </div>
-
-                  <p className="text-[9.5px] text-gray-400 mb-3.5 leading-relaxed">
-                    Alter demo license pricing for strategy level upgrades. Rates seamlessly carry over into user upgrade blocks.
-                  </p>
-
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    triggerFlash('success', 'Subscription billing prices updated inside cockpit database!');
-                  }} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3.5">
-                      <div>
-                        <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">PRO Strategic Level ($)</label>
+                        <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Margin Allocation ($)</label>
                         <input
                           type="number"
-                          step="0.01"
+                          name="trade_margin"
+                          defaultValue="50"
                           min="1"
-                          value={proTierPrice}
-                          onChange={(e) => setProTierPrice(Number(e.target.value))}
-                          className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[11px] font-bold focus:border-[#00FFA3] focus:outline-none"
+                          max="200"
+                          className="w-full bg-[#0b0c10] border border-[#222] text-white rounded-xl px-2.5 py-1 text-xs focus:outline-none text-sans font-bold"
+                          required
                         />
                       </div>
                       <div>
-                        <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">VIP Real-Time Level ($)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="1"
-                          value={vipTierPrice}
-                          onChange={(e) => setVipTierPrice(Number(e.target.value))}
-                          className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[11px] font-bold focus:border-[#00FFA3] focus:outline-none"
-                        />
+                        <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Leverage multiplier</label>
+                        <select name="trade_lev" className="w-full bg-[#0b0c10] border border-[#222] text-white rounded-xl px-2.5 py-1.5 focus:outline-none">
+                          <option value="10">10x Leverage</option>
+                          <option value="20" selected>20x Leverage</option>
+                          <option value="50">50x Leverage</option>
+                        </select>
                       </div>
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full bg-gradient-to-r from-[#7047EB] to-[#9167FF] hover:opacity-95 text-white py-2 rounded-xl text-[9.5px] font-bold transition select-none cursor-pointer uppercase"
+                      className="w-full bg-[#00FFA3] hover:opacity-95 text-black font-black py-2.5 rounded-xl uppercase transition select-none cursor-pointer text-center text-[10px] font-sans tracking-wider"
                     >
-                      ✓ Update License billing Rates
+                      Process Transaction Trade
                     </button>
                   </form>
                 </div>
 
-                {/* Section 4: System maintenance warnings editor */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 text-xs font-mono">
-                  <div className="flex items-center justify-between mb-3 border-b border-[#0A0A0B] pb-2">
-                    <h5 className="font-bold text-white uppercase tracking-wider text-[10px] flex items-center gap-1">
-                      <Bell size={10} className="text-[#00FFA3]" /> System Maintenance Warning
-                    </h5>
-                    
-                    {/* Toggle Indicator Button */}
+                {/* 2. Live Orderbook Bid-Ask Depth summary */}
+                <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5">
+                  <h4 className="text-white text-[10px] font-black uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-[#222] pb-2">
+                    <ListFilter size={12} className="text-[#00FFA3]" /> Bybit Live Orderbook
+                  </h4>
+                  <div className="space-y-1.5 text-[9px]">
+                    <div className="flex justify-between items-center text-[#FF4D4D] font-extrabold">
+                      <span>ASK: $68,480.50</span>
+                      <span>Vol: 1.542 BTC</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[#FF4D4D]/80">
+                      <span>ASK: $68,465.10</span>
+                      <span>Vol: 0.814 BTC</span>
+                    </div>
+                    <div className="border-t border-[#1f1f1f] py-1 text-center text-[10px] text-white font-extrabold animate-pulse">
+                      Settle Index: ${tickerPrices[selectedSymbol]?.price.toFixed(2)}
+                    </div>
+                    <div className="flex justify-between items-center text-[#00FFA3]/80">
+                      <span>BID: $68,410.00</span>
+                      <span>Vol: 2.112 BTC</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[#00FFA3] font-extrabold">
+                      <span>BID: $68,395.20</span>
+                      <span>Vol: 4.815 BTC</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active positions long/short panels tracker */}
+              {openPositions.length > 0 && (
+                <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5 space-y-3 font-mono text-xs">
+                  <h4 className="text-white text-[10px] font-black uppercase tracking-wider border-b border-[#222] pb-2">
+                    Active Open Positions ({openPositions.length})
+                  </h4>
+                  <div className="space-y-2.5">
+                    {openPositions.map((pos) => {
+                      const isProfit = pos.pnl >= 0;
+                      return (
+                        <div key={pos.id} className="bg-[#0b0c10] border border-[#222] p-3.5 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[8px] font-black uppercase border px-1.5 py-0.5 rounded
+                                ${pos.type === 'LONG' ? 'bg-emerald-950/20 text-[#00FFA3] border-emerald-920' : 'bg-rose-950/20 text-[#FF4D4D] border-rose-910'}`}>
+                                {pos.type} {pos.lev}x
+                              </span>
+                              <strong className="text-white font-sans text-xs">{pos.symbol}</strong>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mt-2 text-[9px] text-gray-500">
+                              <span>Entry Price: <strong className="text-gray-300 font-sans">${pos.entryPrice}</strong></span>
+                              <span>Contract Size: <strong className="text-gray-300 font-sans">{pos.size} BTC</strong></span>
+                            </div>
+                          </div>
+
+                          <div className="text-right flex items-center justify-between sm:justify-end gap-4 border-t sm:border-0 border-zinc-900 pt-2.5 sm:pt-0">
+                            <div>
+                              <span className="text-gray-500 text-[8px] block uppercase">Live profit / loss</span>
+                              <p className={`font-black text-xs ${isProfit ? 'text-[#00FFA3]' : 'text-[#FF4D4D]'}`}>
+                                {isProfit ? '+' : ''}${isProfit ? pos.pnl : Math.abs(pos.pnl)} USDT
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleClosePosition(pos.id)}
+                              className="bg-red-950/20 hover:bg-red-950/35 border border-red-900/30 hover:border-red-900 text-red-400 font-extrabold px-3 py-1.5 rounded-xl text-[9px] uppercase transition cursor-pointer select-none font-sans"
+                            >
+                              Settle Close
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: WALLET DEPOSIT PAYSTACK & SWAPS PAGE */}
+          {activeTab === 'wallet' && (
+            <div className="space-y-6 animate-fade-in">
+              <PaystackSim
+                onSuccess={handleClaimCredits}
+                triggerFlash={triggerFlash}
+                lang={lang}
+              />
+
+              {/* Inbuilt Buy/Sell Coins Swap Matrix */}
+              <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5">
+                <div className="flex items-center justify-between border-b border-[#222] pb-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <ArrowRightLeft className="text-[#00FFA3]" size={15} />
+                    <h3 className="font-extrabold text-white text-xs uppercase tracking-wider leading-none">
+                      Inbuilt TON/USDT Currency Swaps
+                    </h3>
+                  </div>
+                  <span className="text-[9px] font-mono text-[#F0B90B] font-bold">1 TON ≈ $7.50 USD</span>
+                </div>
+
+                <p className="text-[10px] text-gray-500 mb-4 font-sans leading-relaxed">
+                  Swap assets instantly within our secure clearing framework. Direct swaps are logged automatically onto central account hashes.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <button
+                    onClick={() => {
+                      if (user.balance < 75) {
+                        triggerFlash('error', 'Buy swaps require minimum $75.00 USDT reserves.');
+                        return;
+                      }
+                      debitLedger(75, 'Bought 10 TON via inbuilt swaps matrix');
+                      setTonBalance(prev => prev + 10);
+                      triggerFlash('success', 'Buy Swap Authorized! Exchanged 75 USDT for 10 TON.');
+                    }}
+                    className="bg-[#0b0c10] hover:bg-zinc-900/80 border border-[#222] hover:border-[#00FFA3]/30 rounded-2xl p-3.5 text-center transition cursor-pointer flex flex-col items-center justify-center"
+                  >
+                    <span className="text-[8px] uppercase text-gray-500 block font-bold">Buy 10 TON</span>
+                    <span className="text-[#00FFA3] font-mono font-bold text-[10.5px] mt-1">-75 USDT / +10 TON</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (tonBalance < 10) {
+                        triggerFlash('error', 'Sell swaps require minimum 10 TON balance.');
+                        return;
+                      }
+                      setTonBalance(prev => prev - 10);
+                      creditLedger(75, 'Inbuilt Convert: Sold 10 TON contracts');
+                      triggerFlash('success', 'Sell Swap Verified! Exchanged 10 TON for 75 USDT.');
+                    }}
+                    className="bg-[#0b0c10] hover:bg-zinc-900/80 border border-[#222] hover:border-[#FF4D4D]/30 rounded-2xl p-3.5 text-center transition cursor-pointer flex flex-col items-center justify-center"
+                  >
+                    <span className="text-[8px] uppercase text-gray-500 block font-bold">Sell 10 TON</span>
+                    <span className="text-[#FF4D4D] font-mono font-bold text-[10.5px] mt-1">-10 TON / +75 USDT</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Web3 Wallet Authorized connection gateways */}
+              <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3.5">
+                  <h4 className="text-white text-xs font-black uppercase leading-none">Web3 Wallet Authorization</h4>
+                  <span className={`text-[8px] font-mono font-bold px-2 py-0.5 rounded border uppercase
+                    ${connectedWallet ? 'bg-emerald-950/20 text-[#00FFA3] border-[#00FFA3]/20 animate-pulse' : 'bg-zinc-900 text-gray-500 border-[#222]'}`}>
+                    {connectedWallet ? 'AUTHORISED' : 'DISCONNECTED'}
+                  </span>
+                </div>
+
+                {connectedWallet ? (
+                  <div className="bg-[#0b0c10] border border-[#222] p-3 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[8px] text-[#00FFA3] uppercase font-bold block">Active Connected Wallet address</span>
+                      <p className="text-[10px] text-gray-300 font-mono mt-1 select-all">{connectedWallet}</p>
+                    </div>
                     <button
-                      type="button"
+                      onClick={() => {
+                        setConnectedWallet(null);
+                        triggerFlash('error', 'Web3 Wallet Session terminated!');
+                      }}
+                      className="text-red-400 hover:underline text-[9px] font-bold font-sans cursor-pointer uppercase border border-red-950 px-2 py-1 rounded"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[9.5px] text-gray-500 mb-3.5 leading-relaxed font-sans">
+                      Connect your secure cold-storage TON keeper, phantom or trust wallets to synchronize cryptographic signatures:
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-bold">
+                      {['tonkeeper', 'trust', 'phantom'].map(p => (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            const mockAddress = 'EQ' + Math.random().toString(36).substring(2, 10).toUpperCase() + '...' + Math.random().toString(36).substring(2, 6).toUpperCase();
+                            setConnectedWallet(mockAddress);
+                            triggerFlash('success', `Web3 Provider: ${p.toUpperCase()} authorized details!`);
+                          }}
+                          className="bg-[#0b0c10] border border-[#222] hover:border-[#F0B90B] p-2.5 rounded-xl transition cursor-pointer uppercase flex flex-col items-center justify-center gap-1.5"
+                        >
+                          <span className="text-base">{p === 'tonkeeper' ? '💎' : p === 'trust' ? '🛡️' : '👻'}</span>
+                          <span className="text-[8px] text-zinc-300 tracking-tight block">{p}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: AUDITED LEDGER HISTORIES PAGE */}
+          {activeTab === 'history' && (
+            <div className="space-y-6 animate-fade-in font-mono text-[10px]">
+              <div className="flex justify-between items-center bg-[#14151a] p-3.5 rounded-xl border border-[#222] leading-none mb-1">
+                <span className="text-gray-400 uppercase font-black text-[9px]">Double-Entry Hashes records</span>
+                <span className="text-[#00FFA3] font-bold text-[9px]">Page {ledgerPage} of {Math.ceil(ledgers.length / ledgerLimit)}</span>
+              </div>
+
+              <div className="space-y-2.5">
+                {ledgers.slice((ledgerPage - 1) * ledgerLimit, ledgerPage * ledgerLimit).map(l => (
+                  <div key={l.id} className="bg-[#14151a] border border-[#222] p-3.5 rounded-xl flex flex-col gap-2 relative">
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <span className={`text-[7.5px] font-black uppercase text-sans border px-1.5 py-0.5 rounded
+                          ${l.type === 'credit' ? 'bg-emerald-950/20 text-[#00FFA3] border-emerald-910' : 'bg-zinc-900 text-gray-400 border-zinc-800'}`}>
+                          {l.type}
+                        </span>
+                        <h4 className="text-white text-[10px] font-extrabold mt-1.5 leading-snug">{l.reason}</h4>
+                      </div>
+                      <span className={`font-black tracking-tight text-xs flex-shrink-0
+                        ${l.type === 'credit' ? 'text-[#00FFA3]' : 'text-gray-300'}`}>
+                        {l.type === 'credit' ? '+' : '–'}${l.amount.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-[8.5px] border-t border-zinc-900 pt-2 text-gray-500">
+                      <span>Maturity stamp: <strong className="text-gray-400">{l.timestamp}</strong></span>
+                      <span>Reserves: <strong className="text-gray-400">${l.balanceAfter.toFixed(2)}</strong></span>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Ledger hashes paginator */}
+                {ledgers.length > ledgerLimit && (
+                  <div className="grid grid-cols-2 gap-2 pt-2.5">
+                    <button
+                      disabled={ledgerPage <= 1}
+                      onClick={() => setLedgerPage(prev => Math.max(1, prev - 1))}
+                      className="bg-[#14151a] border border-[#222] hover:border-[#00FFA3]/40 text-gray-400 text-[9.5px] font-extrabold py-1.5 rounded-xl cursor-pointer disabled:opacity-30 transition"
+                    >
+                      ◀ PREVIOUS LOGS
+                    </button>
+                    <button
+                      disabled={ledgerPage >= Math.ceil(ledgers.length / ledgerLimit)}
+                      onClick={() => setLedgerPage(prev => prev + 1)}
+                      className="bg-[#14151a] border border-[#222] hover:border-[#00FFA3]/40 text-gray-400 text-[9.5px] font-extrabold py-1.5 rounded-xl cursor-pointer disabled:opacity-30 transition"
+                    >
+                      NEXT LOGS PAGE ▶
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Price flags alarm logs */}
+              {triggeredAlerts.length > 0 && (
+                <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5 space-y-2.5">
+                  <h4 className="text-white text-[10px] font-black uppercase text-zinc-300">Triggered Price Alarms logs</h4>
+                  <div className="space-y-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                    {triggeredAlerts.map((log, k) => (
+                      <p key={k} className="text-[9.2px] text-[#F0B90B] font-bold border-b border-zinc-900 pb-1 font-mono">
+                        🚩 {log}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 6: SETTINGS & ADMINISTRATIVE CALIBRATION CORE PAGE */}
+          {activeTab === 'settings' && (
+            <div className="space-y-6 animate-fade-in font-mono text-xs">
+              
+              {/* Performance Mode Switches */}
+              <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between border-b border-[#222] pb-2.5 mb-1">
+                  <h5 className="font-extrabold uppercase text-white tracking-widest text-[10px] flex items-center gap-1.5">
+                    <Activity size={12} className="text-[#00FFA3]" />
+                    {t('performanceMode')}
+                  </h5>
+                  <button
+                    onClick={() => {
+                      setPerformanceMode(!performanceMode);
+                      triggerFlash('success', `Performance efficiency mode turned ${!performanceMode ? 'ACTIVE' : 'DEACTIVATED'} globally.`);
+                    }}
+                    className={`text-[8.5px] font-bold uppercase px-2 py-0.5 rounded transition cursor-pointer select-none border font-mono
+                      ${performanceMode ? 'bg-[#00FFA3]/10 text-[#00FFA3] border-[#00FFA3]/20' : 'bg-[#0b0c10] text-gray-550 border-[#222]'}`}
+                  >
+                    {performanceMode ? 'ACTIVE' : 'DEACTIVATED'}
+                  </button>
+                </div>
+                <p className="text-[9.5px] text-gray-500 leading-relaxed font-sans mt-1">
+                  {t('performanceModeDesc')}
+                </p>
+              </div>
+
+              {/* Package pricing engine custom settings */}
+              <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-[#222] pb-2 text-[10px] text-white font-extrabold">
+                  <span className="flex items-center gap-1"><Coins size={12} className="text-[#00FFA3]" /> ADJUST COCKPIT PRICING MODES</span>
+                  <span className="text-[8px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded tracking-widest">LIVE DATA</span>
+                </div>
+                
+                <p className="text-[9.5px] text-gray-500 leading-relaxed mt-1 font-sans">
+                  Change pricing levels inside our cockpit sandbox database. These updates carry over into the packages upgrade sheet dynamically.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Pro Strategy cost ($/m)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={proTierPrice}
+                      onChange={(e) => setProTierPrice(Number(e.target.value))}
+                      className="w-full bg-[#0b0c10] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[11px] font-bold focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">VIP Premium cost ($/m)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={vipTierPrice}
+                      onChange={(e) => setVipTierPrice(Number(e.target.value))}
+                      className="w-full bg-[#0b0c10] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[11px] font-bold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="border border-[#222] rounded-2xl p-4 space-y-4">
+                  <h4 className="text-zinc-300 font-extrabold uppercase text-[10px] tracking-wide border-b border-[#222] pb-1.5 flex items-center gap-1">🛡️ Upgrades License plans</h4>
+                  {[
+                    { key: 'pro' as const, name: 'Pro Strategy License', price: proTierPrice, benefits: 'Confidences numbers unlocked + EMA crossover indicators curves.' },
+                    { key: 'vip' as const, name: 'VIP Premium Sovereign', price: vipTierPrice, benefits: 'Zero latency indices metrics + immediate Bybit API feeds & Zero sponsored Ads.' }
+                  ].map(plan => (
+                    <div key={plan.key} className={`border p-3.5 rounded-xl text-[9px] relative transition-all duration-300
+                      ${user.plan === plan.key ? 'bg-[#00FFA3]/5 border-[#00FFA3]/40' : 'bg-transparent border-zinc-900'}`}>
+                      {user.plan === plan.key && (
+                        <span className="absolute top-3.5 right-3.5 text-[7px] font-bold text-[#00FFA3] uppercase border border-[#00FFA3]/20 bg-[#00FFA3]/5 px-2 py-0.5 rounded-full select-none">License active</span>
+                      )}
+                      <h4 className="text-white text-[11px] font-extrabold leading-none">{plan.name}</h4>
+                      <p className="text-gray-500 font-mono text-[9px] mt-1">$ {plan.price.toFixed(2)} / monthly</p>
+                      <p className="text-gray-400 mt-2 font-sans py-1 leading-relaxed">{plan.benefits}</p>
+                      <div className="mt-3">
+                        {user.plan === plan.key ? (
+                          <button disabled className="w-full text-center py-2 bg-zinc-900 border border-zinc-800 text-gray-600 rounded-xl select-none text-[9.5px] uppercase font-bold cursor-not-allowed">Active</button>
+                        ) : (
+                          <button onClick={() => handleUpgradeSubscription(plan.key)} className="w-full text-center py-2 bg-[#00FFA3] hover:opacity-95 text-black font-black uppercase text-[9.5px] rounded-xl transition cursor-pointer font-sans select-none tracking-wider">Buy License Upgrade</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Administrative sensitive parameters, alerts writing, ads creator */}
+              <div className="bg-[#14151a] border border-[#222] rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-[#222] pb-2 text-[10px] text-white font-extrabold font-mono">
+                  <span className="flex items-center gap-1"><Shield size={12} className="text-[#00FFA3]" /> ADMIN HARDWARE CONFIG COCKPIT</span>
+                  <span className="text-[8px] bg-red-950/25 text-red-500 border border-red-950/35 px-1.5 py-0.5 rounded tracking-widest font-black uppercase">Root</span>
+                </div>
+
+                {/* Signals Sensitivities globally toggler */}
+                <div>
+                  <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Global Signal Sensitivity Filter</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['LOW', 'MEDIUM', 'HIGH'] as const).map(lvl => (
+                      <button
+                        key={lvl}
+                        onClick={() => {
+                          setSignalSensitivity(lvl);
+                          triggerFlash('success', `Altered global calibration index status: ${lvl}`);
+                        }}
+                        className={`py-1.5 rounded-lg text-[9px] font-extrabold uppercase border cursor-pointer select-none text-center transition
+                          ${signalSensitivity === lvl ? 'bg-[#00FFA3]/10 text-[#00FFA3] border-[#00FFA3]/30' : 'bg-[#0b0c10] text-gray-500 border-[#222]'}`}
+                      >
+                        {lvl} Mode
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Maintenance writing widget */}
+                <div className="bg-[#0b0c10] border border-[#222] p-3.5 rounded-xl space-y-3">
+                  <div className="flex justify-between items-center text-[10px] font-extrabold text-white">
+                    <span>GLOBAL MAINTENANCE MESSAGES</span>
+                    <button
                       onClick={() => {
                         setMaintenanceAlertActive(!maintenanceAlertActive);
-                        triggerFlash('success', `Maintenance system alerts turned ${!maintenanceAlertActive ? 'ACTIVE' : 'DEACTIVATED'} globally.`);
+                        triggerFlash('success', `Maintenance status flags modified: ${!maintenanceAlertActive}`);
                       }}
-                      className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded transition cursor-pointer select-none border font-mono
-                        ${maintenanceAlertActive 
-                          ? 'bg-[#F0B90B]/10 text-[#F0B90B] border-[#F0B90B]/20 bg-[#F0B90B]/5' 
-                          : 'bg-[#0A0A0B] text-gray-500 border-[#222]'}`}
+                      className={`text-[8px] font-bold border px-2 py-0.5 rounded transition uppercase
+                        ${maintenanceAlertActive ? 'bg-amber-950/20 text-amber-500 border-amber-900/30' : 'bg-transparent text-gray-500 border-[#222]'}`}
                     >
-                      {maintenanceAlertActive ? '✓ Active warning' : 'downtime offline'}
+                      {maintenanceAlertActive ? 'Warning online' : 'offline'}
                     </button>
                   </div>
-
-                  <p className="text-[9.5px] text-gray-400 mb-3.5 leading-relaxed">
-                    Broadcast a prominent alert banner regarding hardware backup operations or trading engine system maintenance.
-                  </p>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Bulletin warning message</label>
-                      <textarea
-                        value={maintenanceAlertMsg}
-                        onChange={(e) => setMaintenanceAlertMsg(e.target.value)}
-                        className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white text-[10px] focus:border-[#00FFA3] focus:outline-none font-mono"
-                        rows={2}
-                      ></textarea>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerFlash('success', 'Global system maintenance message synchronized!');
-                      }}
-                      className="w-full bg-[#F0B90B] hover:opacity-95 text-black font-black py-2 rounded-xl text-[9.5px] transition select-none cursor-pointer uppercase font-sans"
-                    >
-                      Publish Alert Bulletin
-                    </button>
-                  </div>
+                  <textarea
+                    value={maintenanceAlertMsg}
+                    onChange={(e) => setMaintenanceAlertMsg(e.target.value)}
+                    className="w-full bg-[#14151a] border border-[#222] rounded-xl p-2 text-[10px] text-white focus:outline-none focus:border-[#00FFA3]"
+                    rows={2}
+                    placeholder="Provide alert descriptions..."
+                  />
                 </div>
 
-                {/* Section 5: Original bulletins and campaign ads (fully preserved) */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 text-xs font-mono">
-                  <h4 className="font-bold text-white border-b border-[#0A0A0B] pb-2 mb-3 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                    <Send size={10} className="text-[#00FFA3]" /> Publish Global bulletin list
-                  </h4>
-                  <form onSubmit={handleAdminPublishNotice} className="space-y-3">
-                    <div>
-                      <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Headline</label>
-                      <input type="text" name="title" defaultValue="EMA Index Cross Spikes Real-time" className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white focus:border-[#00FFA3] focus:outline-none text-[10px]" />
-                    </div>
-                    <div>
-                      <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Detailed text notice</label>
-                      <textarea name="content" defaultValue="The RSI 14 oscillates at support baseline bounds. Check your alerts feed." className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white focus:border-[#00FFA3] focus:outline-none text-[10px]" rows={2}></textarea>
-                    </div>
-                    <button type="submit" className="w-full bg-[#0A0A0B] hover:bg-[#111] border border-[#222] hover:border-[#00FFA3]/40 text-gray-300 hover:text-white py-2 rounded-xl text-[9.5px] font-bold transition select-none cursor-pointer uppercase">
-                      Publish glob notices
+                {/* Ads placements deployments */}
+                <div className="bg-[#0b0c10] border border-[#222] p-3.5 rounded-xl space-y-3">
+                  <h5 className="text-[10px] font-extrabold text-[#00FFA3]">DEPLOY SPONSORED PROMOTION CAMPAIGNS</h5>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formdata = new FormData(e.currentTarget);
+                    const title = String(formdata.get('ad_title') || '');
+                    const imageUrl = String(formdata.get('ad_image') || '');
+                    if (!title || !imageUrl) return;
+
+                    const newAd: AdCampaigns = {
+                      id: campaigns.length + 1,
+                      placement: 'market',
+                      title,
+                      imageUrl,
+                      linkUrl: '#',
+                      active: true
+                    };
+                    setCampaigns(prev => [newAd, ...prev]);
+                    triggerFlash('success', `Ad Campaign '${title}' deployed successfully!`);
+                    e.currentTarget.reset();
+                  }} className="space-y-2.5 text-[9px]">
+                    <input
+                      type="text"
+                      name="ad_title"
+                      placeholder="Ad Headlines header (e.g. BTC cashback promos...)"
+                      className="w-full bg-[#14151a] border border-[#222] rounded-lg px-2.5 py-1.5 focus:outline-none"
+                      required
+                    />
+                    <input
+                      type="url"
+                      name="ad_image"
+                      defaultValue="https://images.unsplash.com/photo-1621510456681-23a23cfb5f57?auto=format&fit=crop&w=600&q=80"
+                      className="w-full bg-[#14151a] border border-[#222] rounded-lg px-2.5 py-1.5 focus:outline-none"
+                      required
+                    />
+                    <button type="submit" className="w-full bg-indigo-950/20 hover:bg-indigo-950/30 border border-indigo-900/40 text-indigo-400 py-1.5 rounded-lg uppercase cursor-pointer text-center font-bold">
+                      Deploy ad placement
                     </button>
                   </form>
                 </div>
-
-                {/* Register dynamic Ad */}
-                <div className="bg-[#151619] border border-[#222] rounded-3xl p-4.5 text-xs font-mono">
-                  <h4 className="font-bold text-white border-b border-[#0A0A0B] pb-2 mb-3 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                    <Zap size={10} className="text-[#00FFA3]" /> Create Marketing Ad campaigns
-                  </h4>
-                  <form onSubmit={handleAdminCreateAd} className="space-y-3">
-                    <div>
-                      <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Campaign Slogan Header</label>
-                      <input type="text" name="heading" defaultValue="Binance VIP Integration Complete" className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white focus:border-[#00FFA3] focus:outline-none text-[10px]" />
-                    </div>
-                    <div>
-                      <label className="block text-gray-500 text-[8px] font-bold uppercase mb-1">Graphic Image URL address</label>
-                      <input type="url" name="url" defaultValue="https://images.unsplash.com/photo-1621510456681-23a23cfb5f57?auto=format&fit=crop&w=600&q=80" className="w-full bg-[#0A0A0B] border border-[#222] px-2.5 py-1.5 rounded-xl text-white focus:border-[#00FFA3] focus:outline-none text-[10px]" />
-                    </div>
-                    <button type="submit" className="w-full bg-[#0A0A0B] hover:bg-[#111] border border-[#222] hover:border-[#00FFA3]/40 text-gray-300 hover:text-white py-2 rounded-xl text-[9.5px] font-bold transition select-none cursor-pointer uppercase">
-                      Deploy Advertising Banner
-                    </button>
-                  </form>
-                </div>
-
               </div>
-            )}
+            </div>
+          )}
 
-          </div>
+        </main>
 
-          {/* PERSISTENT BOTTOM NAVIGATION TAB TOUCH BAR */}
-          <div className="absolute bottom-0 inset-x-0 h-[68px] bg-[#0A0A0B] border-t border-[#1f1f1f] flex justify-around items-center px-2 z-30 select-none">
-            {[
-              { id: 'markets' as const, label: 'Markets', icon: <TrendingUp size={16} /> },
-              { id: 'charts' as const, label: 'Charts', icon: <Activity size={16} /> },
-              { id: 'signals' as const, label: 'AI Signals', icon: <Radio size={16} /> },
-              { id: 'ledger' as const, label: 'Ledger', icon: <Coins size={16} /> },
-              { id: 'profile' as const, label: 'Billing', icon: <User size={16} /> },
-              { id: 'admin' as const, label: 'Admin', icon: <Shield size={16} /> }
-            ].map((cfg) => (
-              <button
-                key={cfg.id}
-                onClick={() => setActiveTab(cfg.id)}
-                className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition select-none cursor-pointer
-                  ${activeTab === cfg.id ? 'text-[#00FFA3] bg-[#00FFA3]/5' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                {cfg.icon}
-                <span className="text-[8px] tracking-tight font-black mt-1 uppercase">{cfg.label}</span>
-              </button>
-            ))}
-          </div>
+        {/* TAB 7: SPECIFIC DEVELOPER COCKPIT SPLIT/RIGHT HALF PANEL */}
+        {splitView && (
+          <section className="w-full lg:w-[45%] bg-[#0c0d10] border-t lg:border-t-0 lg:border-l border-[#1f1f1f] p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-64px)] space-y-6">
+            <div className="flex items-center justify-between border-b border-[#222] pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <FileCode className="text-[#00FFA3]" size={16} />
+                <h3 className="font-extrabold text-white text-xs uppercase tracking-wider font-sans">
+                  PHP SaaS Systems Code Explorer
+                </h3>
+              </div>
+              <span className="text-[7.5px] text-gray-500 font-extrabold uppercase">
+                MySQLi Direct Engine
+              </span>
+            </div>
 
-        </div>
+            <p className="text-[9.5px] text-gray-500 leading-relaxed font-sans mt-1">
+              Analyze fully compliant enterprise backends written in pure PHP 7.4+ compatible with typical apache shared host systems:
+            </p>
+
+            {/* Custom file index selectors */}
+            <div className="grid grid-cols-2 gap-2">
+              {PHP_SOURCES.map((src, idx) => (
+                <button
+                  key={src.path}
+                  onClick={() => setSelectedFileIndex(idx)}
+                  className={`text-left p-2.5 rounded-xl border text-[10px] font-mono transition cursor-pointer select-none leading-none
+                    ${selectedFileIndex === idx
+                      ? 'bg-[#00FFA3]/15 border-[#00FFA3]/35 text-[#00FFA3]'
+                      : 'bg-[#14151a] border-[#222] text-gray-500 hover:text-zinc-300'}`}
+                >
+                  <p className="font-black truncate block">{src.path}</p>
+                  <span className="text-[8px] text-gray-600 block mt-1 truncate">{src.title}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Code presentation output box */}
+            <div className="bg-[#14151a] border border-[#222] rounded-2xl p-4.5 space-y-3 relative overflow-hidden font-mono">
+              <div className="flex justify-between items-center bg-[#0b0c10] p-2.5 rounded-xl border border-[#222] text-[9.5px]">
+                <span className="text-[#00FFA3] font-black truncate max-w-xs">{currentPhpSource.path}</span>
+                <button
+                  onClick={() => handleCopyCode(currentPhpSource.code)}
+                  className="text-[#00FFA3] font-bold hover:underline cursor-pointer"
+                >
+                  {isCopied ? 'Copied!' : 'Copy Code'}
+                </button>
+              </div>
+
+              <p className="text-[9.5px] text-gray-400 font-sans leading-relaxed">
+                💡 <strong className="text-white">Feature Action:</strong> {currentPhpSource.description}
+              </p>
+
+              <pre className="text-[8.5px] leading-relaxed text-zinc-300 p-3.5 bg-[#0b0c10] border border-[#222] rounded-xl overflow-x-auto max-h-96 custom-scrollbar select-text selection:bg-[#00FFA3]/30">
+                {currentPhpSource.code}
+              </pre>
+            </div>
+
+            {/* SSE pushed webhook triggers logs panel inside Code Cockpit */}
+            <div className="bg-[#14151a] border border-[#222] rounded-2xl p-4">
+              <div className="flex items-center justify-between border-b border-[#222] pb-2 mb-3">
+                <span className="text-[8.5px] uppercase font-mono font-black text-gray-400 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00FFA3] animate-pulse" />
+                  Live SSE Webhooks Emulator Log
+                </span>
+                <button
+                  onClick={() => {
+                    const demoMsg = {
+                      id: Date.now(),
+                      event: 'SSE_MOCK_HEARTBEAT',
+                      title: 'API Ticker Ping',
+                      message: `Bybit Perpetual API status: success. Latency 12ms.`,
+                      time: new Date().toLocaleTimeString()
+                    };
+                    setSseEventsLog(prev => [demoMsg, ...prev]);
+                    triggerFlash('success', 'Injected simulated SSE event webhook alert!');
+                  }}
+                  className="text-[8.5px] font-black text-[#00FFA3] hover:underline cursor-pointer uppercase font-mono"
+                >
+                  + emit sse webhook
+                </button>
+              </div>
+              
+              <div className="space-y-1.5 max-h-36 overflow-y-auto no-scrollbar font-mono text-[8px]">
+                {sseEventsLog.map(log => (
+                  <div key={log.id} className="bg-[#0b0c10] border border-[#222] p-2.5 rounded-xl flex justify-between gap-3 items-start">
+                    <div>
+                      <p className="text-[#00FFA3] font-black uppercase text-[7.5px]">{log.event}</p>
+                      <p className="text-gray-300 font-bold mt-0.5">{log.title}</p>
+                      <p className="text-gray-500 mt-0.5 leading-snug">{log.message}</p>
+                    </div>
+                    <span className="text-gray-600 font-extrabold whitespace-nowrap">{log.time}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
       </div>
 

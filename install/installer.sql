@@ -149,6 +149,27 @@ CREATE TABLE IF NOT EXISTS `price_alerts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
+-- Table structure for table `trading_history`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `trading_history` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `symbol` VARCHAR(20) NOT NULL,
+  `side` ENUM('buy', 'sell') NOT NULL,
+  `order_type` ENUM('market', 'limit') NOT NULL DEFAULT 'market',
+  `price` DECIMAL(18,8) NOT NULL,
+  `amount` DECIMAL(18,8) NOT NULL,
+  `total` DECIMAL(18,8) NOT NULL,
+  `status` ENUM('filled', 'pending', 'cancelled') NOT NULL DEFAULT 'filled',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  INDEX (`user_id`),
+  INDEX (`symbol`),
+  INDEX (`side`),
+  INDEX (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
 -- Table structure for table `referrals`
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `referrals` (
@@ -192,6 +213,23 @@ CREATE TABLE IF NOT EXISTS `connected_wallets` (
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   UNIQUE KEY `user_wallet` (`user_id`, `wallet_address`),
   INDEX (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table structure for table `deposits`
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `deposits` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `reference` VARCHAR(100) NOT NULL UNIQUE,
+  `amount` DECIMAL(18,8) NOT NULL,
+  `status` ENUM('pending', 'success', 'failed') NOT NULL DEFAULT 'pending',
+  `gateway` VARCHAR(50) NOT NULL DEFAULT 'paystack',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  INDEX (`user_id`),
+  INDEX (`reference`),
+  INDEX (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
